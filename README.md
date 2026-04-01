@@ -252,6 +252,26 @@ We welcome contributions! Whether it's a new tool, a bug fix, or an improvement 
 10. Merge        → Once approved, maintainer merges into main
 ```
 
+### Keeping your fork updated
+
+After you fork and clone, your copy doesn't automatically get new changes from the original repo. To stay up to date:
+
+**One-time setup** — add the original repo as a remote called `upstream`:
+
+```bash
+git remote add upstream https://github.com/PIO-Anurag-Garg/ia-tools-ibmi.git
+```
+
+**Pull latest changes** whenever you want to sync:
+
+```bash
+git fetch upstream
+git merge upstream/main
+git push origin main        # updates your fork on GitHub too
+```
+
+> **Tip**: GitHub also has a **"Sync fork"** button on your fork's page — click it to pull in upstream changes without using the CLI.
+
 ### PR checklist
 
 Before submitting, verify:
