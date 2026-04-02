@@ -8,13 +8,15 @@ Use them with **VS Code GitHub Copilot**, **Claude Code**, or any MCP-compatible
 
 | File | Description |
 |------|-------------|
-| `impact-analysis.yaml` | 4 MCP tool definitions for iA queries |
+| `impact-analysis.yaml` | 6 MCP tool definitions for iA queries |
 | `AGENTS.md` | AI agent playbook — how to chain tools, interpret results, and ask follow-up questions like a senior IBM i developer |
 | `.vscode/mcp.json` | VS Code MCP server config (auto-detected on open) |
 | `.env.example` | DB2i connection template |
 | `LICENSE` | Apache-2.0 |
 
-## Tools (4)
+## Tools (6 custom + 2 built-in)
+
+### Custom iA Tools (defined in `impact-analysis.yaml`)
 
 | # | Tool | Description |
 |---|------|-------------|
@@ -22,6 +24,15 @@ Use them with **VS Code GitHub Copilot**, **Claude Code**, or any MCP-compatible
 | 2 | `ia_call_hierarchy` | Program call tree (CALLERS/CALLEES/BOTH) |
 | 3 | `ia_field_impact` | Blast radius of changing a field in a file |
 | 4 | `ia_program_variables` | All variables declared in a program |
+| 5 | `ia_where_used_detail` | Enhanced where-used with source existence check |
+| 6 | `ia_library_files` | List all files/tables in the iA library |
+
+### Built-in MCP Server Tools (enabled via `--execute-sql` flag)
+
+| Tool | Description |
+|------|-------------|
+| `execute_sql` | Run any SELECT query the AI agent constructs (read-only by default) |
+| `describe_sql_object` | Get DDL/schema for any table, view, index, or procedure |
 
 > More tools are being developed and will be released incrementally. Contributions welcome!
 
@@ -80,7 +91,7 @@ Install and start the MCP server in a terminal:
 
 ```bash
 npm install -g @ibm/ibmi-mcp-server
-npx @ibm/ibmi-mcp-server --transport http --tools ./impact-analysis.yaml
+npx @ibm/ibmi-mcp-server --transport http --execute-sql --tools ./impact-analysis.yaml
 ```
 
 You should see output like:
@@ -92,7 +103,7 @@ IBM i MCP Server listening on http://localhost:3000
 
 > **Windows users**: If `npx` gives "Access is denied", use `node` directly:
 > ```bash
-> node %APPDATA%\npm\node_modules\@ibm\ibmi-mcp-server\dist\index.js --transport http --tools ./impact-analysis.yaml
+> node %APPDATA%\npm\node_modules\@ibm\ibmi-mcp-server\dist\index.js --transport http --execute-sql --tools ./impact-analysis.yaml
 > ```
 
 ### Step 4: Open in VS Code
@@ -101,13 +112,13 @@ IBM i MCP Server listening on http://localhost:3000
 code .
 ```
 
-VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 4 iA tools become available in Copilot Chat.
+VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 6 iA tools plus built-in SQL tools become available in Copilot Chat.
 
 ### Step 5: Use iA tools in Copilot Chat
 
 1. **Open Copilot Chat**: Press `Ctrl+Alt+I` (Windows/Linux) or `Cmd+Alt+I` (Mac)
 2. **Switch to Agent mode**: Click the mode dropdown at the top of the chat panel and select **"Agent"**
-3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 4 `ia-*` tools listed under "ibmi-ia-tools"
+3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 6 `ia-*` tools plus `execute_sql` and `describe_sql_object` listed under "ibmi-ia-tools"
 4. **Ask a question** — the agent will automatically pick the right iA tool:
 
 ```
@@ -163,7 +174,7 @@ export DB2i_PORT=8076
 export IA_LIBRARY=SDK01
 
 # Start in HTTP mode for manual testing
-npx @ibm/ibmi-mcp-server --transport http --tools ./impact-analysis.yaml
+npx @ibm/ibmi-mcp-server --transport http --execute-sql --tools ./impact-analysis.yaml
 # Server starts at http://localhost:3000
 ```
 
@@ -218,7 +229,7 @@ ia_tool_name:
 1. **Edit** `impact-analysis.yaml` — add or modify a tool definition
 2. **Restart the MCP server** — stop it in your terminal (`Ctrl+C`) and start again:
    ```bash
-   npx @ibm/ibmi-mcp-server --transport http --tools ./impact-analysis.yaml
+   npx @ibm/ibmi-mcp-server --transport http --execute-sql --tools ./impact-analysis.yaml
    ```
 3. **Test in Copilot Chat** — switch to Agent mode and ask a question that should trigger your tool
 4. **Verify** the SQL returns correct results and the response makes sense
@@ -304,6 +315,8 @@ These tools query the following iA repository tables (pre-parsed IBM i source me
 | `IAPGMCALLS` | Call graph: CALL, CALLP, bound module references |
 | `IAFIDTL` | Field-level details for database files |
 | `IAPGMVARS` | Program variables (standalone, DS subfields, indicators) |
+| `IAOBJMAP` | Object-to-source member mapping |
+| `QSYS2.SYSTABLES` | System catalog: file/table inventory per library |
 
 ---
 
@@ -311,7 +324,7 @@ These tools query the following iA repository tables (pre-parsed IBM i source me
 
 | Issue | Solution |
 |-------|----------|
-| `npx: Access is denied` (Windows) | Install globally: `npm install -g @ibm/ibmi-mcp-server`, then use `node %APPDATA%\npm\node_modules\@ibm\ibmi-mcp-server\dist\index.js --transport http --tools ./impact-analysis.yaml` |
+| `npx: Access is denied` (Windows) | Install globally: `npm install -g @ibm/ibmi-mcp-server`, then use `node %APPDATA%\npm\node_modules\@ibm\ibmi-mcp-server\dist\index.js --transport http --execute-sql --tools ./impact-analysis.yaml` |
 | MCP server not starting | Check Node.js version: `node --version` (must be 18+) |
 | Tools not showing in Copilot Chat | Make sure you're in **Agent** mode (not Ask or Edit mode). Click the tools icon to enable/disable specific tools |
 | Tools not connecting in VS Code | Ensure the MCP server is running in a separate terminal (`http://localhost:3000`) before opening VS Code |
