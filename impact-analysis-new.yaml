@@ -1,0 +1,423 @@
+# Impact Analysis (iA) Tools for IBM i
+# Source: programmers.io ia-mcp-server — tools for code impact analysis.
+# Developed by Tushar Kumar (@PioTusharAI) for iA MCP (Model Context protocol with IA).
+# These tools query the iA repository tables (pre-parsed IBM i source metadata).
+#
+# IMPORTANT: The library is configured via the IA_LIBRARY environment variable.
+# Default iA library: IADEMODEV (set IA_LIBRARY in .env to override).
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  TOOL CHAIN FLOW (Copilot Agent auto-chains these in sequence)          │
+# │                                                                         │
+# │  User asks about a PF (e.g. CUSTMAST)                                   │
+# │       │                                                                 │
+# │  [1] ia_pf_dependent_lfs ─────── All LFs built over the PF              │
+# │       │                                                                 │
+# │  [2] ia_lf_program_refs ──────── Programs/Procedures using those LFs    │
+# │       │                                                                 │
+# │  [3] ia_program_source ───────── Source code of chosen program          │
+# │       │                                                                 │
+# │  Copilot auto-generates:                                                │
+# │    • Business rules summary                                             │
+# │    • Mermaid flowchart diagram                                          │
+# │    • Key variable list                                                  │
+# │                                                                         │
+# │  Supporting tools (independent):                                        │
+# │  [4] ia_call_hierarchy    – call tree callers/callees                   │
+# │  [5] ia_field_impact      – blast radius of a field change              │
+# │  [6] ia_program_variables – all variables declared in a program         │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Tables queried: IADSPDBR, IAALLREFPF, IAPGMCALLS, IAFIDTL, IAPGMVARS
+# Built-in IBM i: QSYS2.SRCMBRINFO (source code retrieval)
+#
+# 
+
+sources:
+  ibmi:
+    host: ${DB2i_HOST}
+    user: ${DB2i_USER}
+    password: "${DB2i_PASS}"
+    port: ${DB2i_PORT}
+    ignore-unauthorized: true
+
+tools:
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CHAIN TOOL 1 — PF → Dependent Logical Files
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_pf_dependent_lfs:
+    name: ia-pf-dependent-lfs
+    source: ibmi
+    description: >
+      STEP 1 OF ANALYSIS CHAIN.
+      Find all Logical Files (LF) that are built over a given Physical File (PF).
+      Call this after ia_where_used when the user confirms they want to explore
+      dependent LFs. Returns every LF that references the PF, including
+      join-logical files (*JRNL) and simple select/omit LFs.
+      Queries IAALLREFPF filtering for FILE objects with LF attribute.
+      
+
+      MANDATORY CHAIN BEHAVIOUR — you MUST follow these steps in order:
+      1. Run the query and return the list of dependent files to the user.
+      2. STOP. Do not call any other tool automatically.
+      3. Ask the user this exact question:
+         "Would you like me to find all programs and procedures that reference
+          [pf_name] and all its logical files combined?"
+      4. Wait for the user to reply YES or NO.
+      5. Only if the user replies YES: call ia_lf_program_refs EXACTLY ONCE,
+         passing pf_name = [the same pf_name used in this call].
+         DO NOT call ia_lf_program_refs once per LF — call it once with the PF name only.
+         DO NOT proceed to the next tool without explicit user confirmation.
+    parameters:
+      - name: pf_name
+        type: string
+        description: "Physical file name (e.g., CUSTMAST)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 5000
+    statement: |
+      SELECT DISTINCT
+        WHRTYP             AS Type_of_file,
+        WHRFI              AS File,
+        WHRLI              AS Library,
+        WHRMB              AS Member,
+        WHRRD              AS Record_format,
+        WHNO               AS Number_of_dependencies,
+        WHDTM              AS Retrieval_date,
+        WHREFI             AS Dependent_file,
+        WHRELI             AS Dependent_library,
+        WHREMB             AS Dependent_member
+      FROM ${IA_LIBRARY}.IADSPDBR
+      WHERE WHRFI = :pf_name
+      FETCH FIRST 10 ROWS ONLY
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CHAIN TOOL 2 — LF/PF → Programs & Procedures
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_lf_program_refs:
+    name: ia-lf-program-refs
+    source: ibmi
+    description: >
+      STEP 3 OF ANALYSIS CHAIN.
+      Find all programs (*PGM), service programs (*SRVPGM), and modules (*MODULE)
+      that reference a specific Logical File or Physical File, including the
+      procedure name where that file is used.
+      Call this after ia_pf_dependent_lfs to complete the chain:
+        Physical File → Logical Files → Programs/Procedures.
+      Joins IAALLREFPF with IAPGMCALLS to surface procedure-level detail.
+    
+
+      IMPORTANT — CALL THIS TOOL EXACTLY ONCE:
+      Pass only pf_name = the root Physical File (e.g. CUSTMAST).
+      DO NOT call this tool separately for each LF returned by ia_pf_dependent_lfs.
+      The SQL automatically includes the PF itself AND all its dependent files
+      via an internal IADSPDBR subquery. One call returns everything combined.
+
+      The file_referenced column shows WHICH file each program uses, so results
+      are naturally grouped:
+        - Programs referencing the PF directly (e.g. CUSTMAST)
+        - Programs referencing each dependent LF (e.g. CUSTMASTL1, CUSTMASTL3)
+
+      MANDATORY CHAIN BEHAVIOUR — you MUST follow these steps in order:
+      1. Run the query and return the combined program list to the user,
+         grouped by file_referenced.
+      2. STOP. Do not call any other tool automatically.
+      3. Ask the user this exact question:
+         "Would you like to see the source code, business rules, and a Mermaid
+          flowchart for any of these programs? If yes, tell me the program name."
+      4. Wait for the user to reply with a program name.
+      5. Only then call ia_program_source with member_name = the chosen program.
+         DO NOT proceed to ia_program_source without explicit user confirmation.
+    parameters:
+      - name: file_name
+        type: string
+        description: "LF or PF name to find program references for (e.g., CUSTMSTL)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: object_type
+        type: string
+        description: "Filter: *ALL, *PGM, *SRVPGM, *MODULE (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 300)"
+        required: false
+        default: 300
+        min: 1
+        max: 5000
+    statement: |
+      SELECT DISTINCT
+        CAST(LIBRARY_NAME AS VARCHAR(128) CCSID 1208) AS LIBRARY_NAME,
+        CAST(OBJECT_NAME AS VARCHAR(128) CCSID 1208) AS OBJECT_NAME,
+        CAST(OBJECT_TYPE AS VARCHAR(128) CCSID 1208) AS OBJECT_TYPE,
+        CAST(OBJECT_ATTR AS VARCHAR(128) CCSID 1208) AS OBJECT_ATTR,
+        CAST(OBJECT_TEXT AS VARCHAR(128) CCSID 1208) AS OBJECT_TEXT,
+        CAST(REFERENCED_OBJ AS VARCHAR(128) CCSID 1208) AS REFERENCED_OBJ,
+        CAST(REFERENCED_OBJTYP AS VARCHAR(128) CCSID 1208) AS REFERENCED_OBJTYP,
+        CAST(REFERENCED_OBJLIB AS VARCHAR(128) CCSID 1208) AS REFERENCED_OBJLIB,
+        CAST(REFERENCED_OBJUSG AS VARCHAR(128) CCSID 1208) AS REFERENCED_OBJUSG,
+        CAST(REFERENCED_OBJATR AS VARCHAR(128) CCSID 1208) AS REFERENCED_OBJATR,
+        CAST(FILE_USAGES AS VARCHAR(128) CCSID 1208) AS FILE_USAGES,
+        CAST(MAPED_FROM AS VARCHAR(128) CCSID 1208) AS MAPED_FROM
+      FROM ${IA_LIBRARY}.IAALLREFPF 
+      WHERE REFERENCED_OBJ IN (
+        SELECT CAST(:file_name AS VARCHAR(10) CCSID 37) FROM SYSIBM.SYSDUMMY1
+        UNION
+        SELECT WHREFI FROM ${IA_LIBRARY}.IADSPDBR WHERE WHRFI = CAST(:file_name AS VARCHAR(10) CCSID 37)
+      )
+      FETCH FIRST :limit ROWS ONLY
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CHAIN TOOL 3 — Program Source + Business Rules + Mermaid Flowchart
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_program_source:
+    name: ia-program-source
+    source: ibmi
+    description: >
+      STEP 4 OF ANALYSIS CHAIN — FINAL STEP.
+      Retrieve the full source code of a program, module, or service program member
+      from IBM i source files. Call this after the user picks a program from the
+      ia_lf_program_refs results and confirms they want to understand it.
+
+      MANDATORY — after retrieving source, you MUST produce ALL THREE of the
+      following without asking the user:
+
+      ── OUTPUT 1: BUSINESS RULES SUMMARY ───────────────────────────────────
+      Write a plain-English numbered list of every business rule found in the
+      source. Include:
+        • File I/O operations (READ, WRITE, UPDATE, DELETE, CHAIN, SETLL, READE)
+        • Conditional logic (IF/ELSE, SELECT/WHEN, DOW, DOU, FOR)
+        • Calculations and formulas
+        • Error handling and exception paths
+        • External program/procedure calls (CALL, CALLP, bound calls)
+        • Key fields used for lookups and joins
+
+      ── OUTPUT 2: MERMAID FLOWCHART ────────────────────────────────────────
+      Generate a Mermaid flowchart using this EXACT format:
+
+      ```mermaid
+      flowchart TD
+          A([Start: PROGRAM_NAME]) --> B[...]
+          ...
+          Z([End])
+      ```
+
+      Rules for the Mermaid diagram:
+        • Use TD (top-down) direction
+        • ([text]) for Start and End nodes (stadium shape)
+        • [text] for process/action nodes (rectangle)
+        • {text} for decisions/conditions (diamond)
+        • [(text)] for database file reads/writes (cylinder shape)
+        • -->|Yes| and -->|No| for conditional branches
+        • Group file operations together near the decision that uses them
+        • Include every significant IF, DOW, DOU, SELECT branch
+        • Show all external CALL/CALLP targets as separate nodes
+        • Label arrows with meaningful text where helpful
+
+      ── OUTPUT 3: KEY VARIABLES TABLE ──────────────────────────────────────
+      Produce a markdown table with columns:
+        Variable Name | Type | Length | Purpose (inferred from context)
+      Include only significant variables (not work fields or counters).
+
+      SOURCE RETRIEVAL NOTE:
+      Uses QSYS2.SRCMBRINFO built-in table function — no iA table required.
+      The source_library parameter accepts *LIBL to search the library list.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member / program name (e.g., ORDHIST, CUSTPGM)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: source_file
+        type: string
+        description: "Source file containing the member (e.g., QRPGLESRC, QCLLESRC)"
+        required: false
+        default: "QRPGLESRC"
+      - name: source_library
+        type: string
+        description: "Library containing the source file (e.g., MYLIB). Use *LIBL to search library list."
+        required: false
+        default: "*LIBL"
+      - name: limit
+        type: integer
+        description: "Max source lines to retrieve (default: 2000)"
+        required: false
+        default: 2000
+        min: 1
+        max: 10000
+    statement: |
+      SELECT
+        LIBRARY_NAME       AS Library_Name,  
+        SOURCEPF_NAME      AS Source_File,
+        IFS_LOCATION       AS IFS_Location,
+        MEMBER_NAME        AS Member_Name,
+        MEMBER_TYPE        AS Member_Type,
+        SOURCE_RRN         AS Source_Rrn,
+        SOURCE_SEQ         AS Source_Sequence,
+        SOURCE_DATE        AS Source_Date,
+        SRCLIN_TYPE        AS Source_Line_Type,
+        SOURCE_SPEC        AS Source_Specification,
+        SRCLIN_CNTN        AS Line_Continuation,
+        SOURCE_DATA        AS Source_Data
+      FROM ${IA_LIBRARY}.IAQRPGSRC
+      WHERE MEMBER_NAME = :member_name FETCH FIRST :limit ROWS ONLY
+
+  # ═══════════════════════════════════════════════════════════════
+  # SUPPORTING TOOL 4 — Call Hierarchy (independent, any direction)
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_call_hierarchy:
+    name: ia-call-hierarchy
+    source: ibmi
+    description: >
+      Generate the call tree for a program — who calls it (CALLERS),
+      what it calls (CALLEES), or both directions.
+      Includes procedure-level detail and call sequence numbers.
+      Queries IAPGMCALLS — captures CALL, CALLP, and bound module references.
+      Use independently or alongside ia_lf_program_refs to understand a program's
+      full call context before reviewing its source with ia_program_source.
+    parameters:
+      - name: program_name
+        type: string
+        description: "Program or module name (e.g., ORDERPGM)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: direction
+        type: string
+        description: "CALLERS (who calls this), CALLEES (what it calls), or BOTH (default: BOTH)"
+        required: false
+        default: "BOTH"
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        'CALLEES'       AS direction,
+        MBR_NAME        AS source_program,
+        CALLED_OBJCT    AS target_program,
+        FROM_PROC       AS calling_procedure,
+        CALLED_PROC     AS called_procedure,
+        CALL_SEQ        AS call_sequence
+      FROM ${IA_LIBRARY}.IAPGMCALLS
+      WHERE MBR_NAME = :program_name
+        AND :direction IN ('CALLEES', 'BOTH')
+      UNION ALL
+      SELECT
+        'CALLERS'       AS direction,
+        MBR_NAME        AS source_program,
+        CALLED_OBJCT    AS target_program,
+        FROM_PROC       AS calling_procedure,
+        CALLED_PROC     AS called_procedure,
+        CALL_SEQ        AS call_sequence
+      FROM ${IA_LIBRARY}.IAPGMCALLS
+      WHERE CALLED_OBJCT = :program_name
+        AND :direction IN ('CALLERS', 'BOTH')
+      ORDER BY direction, call_sequence
+      FETCH FIRST :limit ROWS ONLY
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SUPPORTING TOOL 5 — Field Impact (blast radius of a field change)
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_field_impact:
+    name: ia-field-impact
+    source: ibmi
+    description: >
+      Analyze the blast radius of changing a specific field in a database file.
+      Returns all programs that reference the file, cross-referenced with
+      field-level usage details (data type, length, usage mode).
+      Critical before any schema change: resize, rename, retype, or delete a field.
+      Combines IAALLREFPF (cross-references) with IAFIDTL (field details).
+      Use alongside ia_program_source to drill into how a specific program
+      uses the field after seeing the impact list.
+    parameters:
+      - name: file_name
+        type: string
+        description: "Physical or logical file name (e.g., CUSTMAST)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: field_name
+        type: string
+        description: "Field name to analyze (e.g., CUSTNO)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT DISTINCT
+        ref.OBJECT_NAME          AS affected_object,
+        ref.OBJECT_TYPE          AS object_type,
+        ref.OBJECT_ATTR          AS object_attr,
+        ref.MAPED_FROM           AS reference_type,
+        fld.FIELD_DATA_TYPE      AS field_type,
+        fld.FIELD_LENGTH         AS field_length,
+        fld.FIELD_USE_MODE       AS field_usage
+      FROM ${IA_LIBRARY}.IAALLREFPF ref
+      LEFT JOIN ${IA_LIBRARY}.IAFIDTL fld
+        ON  fld.MEMBER_NAME        = ref.OBJECT_NAME
+        AND fld.FIELD_NAME_INTERNAL = :field_name
+      WHERE ref.REFERENCED_OBJ = :file_name
+      ORDER BY ref.OBJECT_TYPE, ref.OBJECT_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SUPPORTING TOOL 6 — Program Variables (all declared variables)
+  # ═══════════════════════════════════════════════════════════════════════
+  ia_program_variables:
+    name: ia-program-variables
+    source: ibmi
+    description: >
+      List all variables declared in a program or module with full type information.
+      Includes standalone fields, data structure subfields, indicators, and constants.
+      Queries IAPGMVARS — parsed from source code by iA's RPG/CL parser.
+      Useful as a complement to ia_program_source when the user wants a structured
+      variable inventory without reading the full source, or to validate the
+      Key Variables Table produced after ia_program_source.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name (e.g., ORDHIST)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        IAV_VAR    AS variable_name,
+        IAV_TYP    AS variable_type,
+        IAV_DTYP   AS data_type,
+        IAV_LEN    AS field_length,
+        IAV_DEC    AS decimal_positions,
+        IAV_DIM    AS array_dimension,
+        IAV_DSFLD  AS ds_field_flag
+      FROM ${IA_LIBRARY}.IAPGMVARS
+      WHERE IAV_MBR = :member_name
+      ORDER BY IAV_VAR
+      FETCH FIRST :limit ROWS ONLY
