@@ -8,12 +8,15 @@ Use them with **VS Code GitHub Copilot**, **Claude Code**, or any MCP-compatible
 
 | File | Description |
 |------|-------------|
-| `impact-analysis.yaml` | 4 MCP tool definitions for iA queries |
+| `impact-analysis.yaml` | 6 MCP tool definitions for iA queries |
+| `AGENTS.md` | AI agent playbook — how to chain tools, interpret results, and ask follow-up questions like a senior IBM i developer |
 | `.vscode/mcp.json` | VS Code MCP server config (auto-detected on open) |
 | `.env.example` | DB2i connection template |
 | `LICENSE` | Apache-2.0 |
 
-## Tools (4)
+## Tools (6 custom + 2 built-in)
+
+### Custom iA Tools (defined in `impact-analysis.yaml`)
 
 | # | Tool | Description |
 |---|------|-------------|
@@ -21,6 +24,15 @@ Use them with **VS Code GitHub Copilot**, **Claude Code**, or any MCP-compatible
 | 2 | `ia_call_hierarchy` | Program call tree (CALLERS/CALLEES/BOTH) |
 | 3 | `ia_field_impact` | Blast radius of changing a field in a file |
 | 4 | `ia_program_variables` | All variables declared in a program |
+| 5 | `ia_where_used_detail` | Enhanced where-used with source existence check |
+| 6 | `ia_library_files` | List all files/tables in the iA library |
+
+### Built-in MCP Server Tools
+
+| Tool | Description | Enabled by |
+|------|-------------|------------|
+| `execute_sql` | Run any SELECT query the AI agent constructs (read-only by default) | `IBMI_ENABLE_EXECUTE_SQL=true` in `.env` |
+| `describe_sql_object` | Get DDL/schema for any table, view, index, or procedure | Always enabled |
 
 > More tools are being developed and will be released incrementally. Contributions welcome!
 
@@ -70,6 +82,7 @@ IA_LIBRARY=SDK01
 | `DB2i_PASS` | Password for the user profile |
 | `DB2i_PORT` | Mapepire port (default: `8076`) |
 | `IA_LIBRARY` | Library where iA repository tables are stored (default: `SDK01`) |
+| `IBMI_ENABLE_EXECUTE_SQL` | Set to `true` to enable the built-in `execute_sql` tool (default: `false`) |
 
 > **Security**: `.env` is in `.gitignore` — your credentials are never committed.
 
@@ -100,13 +113,13 @@ IBM i MCP Server listening on http://localhost:3000
 code .
 ```
 
-VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 4 iA tools become available in Copilot Chat.
+VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 6 iA tools plus built-in SQL tools become available in Copilot Chat.
 
 ### Step 5: Use iA tools in Copilot Chat
 
 1. **Open Copilot Chat**: Press `Ctrl+Alt+I` (Windows/Linux) or `Cmd+Alt+I` (Mac)
 2. **Switch to Agent mode**: Click the mode dropdown at the top of the chat panel and select **"Agent"**
-3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 4 `ia-*` tools listed under "ibmi-ia-tools"
+3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 6 `ia-*` tools plus `execute_sql` and `describe_sql_object` listed under "ibmi-ia-tools"
 4. **Ask a question** — the agent will automatically pick the right iA tool:
 
 ```
@@ -251,6 +264,26 @@ We welcome contributions! Whether it's a new tool, a bug fix, or an improvement 
 10. Merge        → Once approved, maintainer merges into main
 ```
 
+### Keeping your fork updated
+
+After you fork and clone, your copy doesn't automatically get new changes from the original repo. To stay up to date:
+
+**One-time setup** — add the original repo as a remote called `upstream`:
+
+```bash
+git remote add upstream https://github.com/PIO-Anurag-Garg/ia-tools-ibmi.git
+```
+
+**Pull latest changes** whenever you want to sync:
+
+```bash
+git fetch upstream
+git merge upstream/main
+git push origin main        # updates your fork on GitHub too
+```
+
+> **Tip**: GitHub also has a **"Sync fork"** button on your fork's page — click it to pull in upstream changes without using the CLI.
+
 ### PR checklist
 
 Before submitting, verify:
@@ -281,8 +314,10 @@ These tools query the following iA repository tables (pre-parsed IBM i source me
 |-------|---------|
 | `IAALLREFPF` | Cross-reference: object-to-object relationships |
 | `IAPGMCALLS` | Call graph: CALL, CALLP, bound module references |
-| `IAFIDTL` | Field-level details for database files |
+| `IAFILEDTL` | Field-level details for database files |
 | `IAPGMVARS` | Program variables (standalone, DS subfields, indicators) |
+| `IAOBJMAP` | Object-to-source member mapping |
+| `QSYS2.SYSTABLES` | System catalog: file/table inventory per library |
 
 ---
 

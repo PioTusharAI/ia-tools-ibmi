@@ -3,9 +3,10 @@
 # These tools query the iA repository tables (pre-parsed IBM i source metadata).
 #
 # IMPORTANT: The library is configured via the IA_LIBRARY environment variable.
-# Default iA library: SDK01 (set IA_LIBRARY in .env to override).
+# Default iA library: IADEMODEV (set IA_LIBRARY in .env to override).
 #
-# Tables queried: IAALLREFPF, IAPGMCALLS, IAFIDTL, IAPGMVARS
+# Tables queried: IAALLREFPF, IAPGMCALLS, IAFILEDTL, IAPGMVARS, IAOBJMAP,
+#   QSYS2.SYSTABLES
 
 sources:
   ibmi:
@@ -17,47 +18,47 @@ sources:
 
 tools:
 
-  # ── 1. Where Used — find all objects referencing a given object ──────────
-  ia_where_used:
-    name: ia-where-used
-    source: ibmi
-    description: >
-      Find every program, service program, command, display file, and logical file
-      that references a specific object. Most common impact analysis query.
-      Use before modifying or deleting any object to understand the blast radius.
-      Queries the iA IAALLREFPF cross-reference table (richer than DSPPGMREF).
-    parameters:
-      - name: object_name
-        type: string
-        description: "IBM i object name to search for (e.g., ORDERFILE, CUSTPGM)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: object_type
-        type: string
-        description: "Filter by type: *ALL, *PGM, *SRVPGM, *FILE, *DSPF, *CMD (default: *ALL)"
-        required: false
-        default: "*ALL"
-      - name: limit
-        type: integer
-        description: "Max results (default: 200)"
-        required: false
-        default: 200
-        min: 1
-        max: 5000
-    statement: |
-      SELECT DISTINCT
-        OBJECT_NAME AS using_object,
-        OBJECT_TYPE AS using_type,
-        OBJECT_ATTR AS using_attr,
-        REFERENCED_OBJ AS referenced_object,
-        REFERENCED_OBJTYP AS referenced_type,
-        MAPED_FROM AS reference_source
-      FROM ${IA_LIBRARY}.IAALLREFPF
-      WHERE REFERENCED_OBJ = :object_name
-        AND (:object_type = '*ALL' OR REFERENCED_OBJTYP = :object_type)
-      ORDER BY OBJECT_TYPE, OBJECT_NAME
-      FETCH FIRST :limit ROWS ONLY
+  # # ── 1. Where Used — find all objects referencing a given object ──────────
+  # ia_where_used:
+  #   name: ia-where-used
+  #   source: ibmi
+  #   description: >
+  #     Find every program, service program, command, display file, and logical file
+  #     that references a specific object. Most common impact analysis query.
+  #     Use before modifying or deleting any object to understand the blast radius.
+  #     Queries the iA IAALLREFPF cross-reference table (richer than DSPPGMREF).
+  #   parameters:
+  #     - name: object_name
+  #       type: string
+  #       description: "IBM i object name to search for (e.g., ORDERFILE, CUSTPGM)"
+  #       required: true
+  #       minLength: 1
+  #       maxLength: 10
+  #     - name: object_type
+  #       type: string
+  #       description: "Filter by type: *ALL, *PGM, *SRVPGM, *FILE, *DSPF, *CMD (default: *ALL)"
+  #       required: false
+  #       default: "*ALL"
+  #     - name: limit
+  #       type: integer
+  #       description: "Max results (default: 200)"
+  #       required: false
+  #       default: 200
+  #       min: 1
+  #       max: 5000
+  #   statement: |
+  #     SELECT DISTINCT
+  #       OBJECT_NAME AS using_object,
+  #       OBJECT_TYPE AS using_type,
+  #       OBJECT_ATTR AS using_attr,
+  #       REFERENCED_OBJ AS referenced_object,
+  #       REFERENCED_OBJTYP AS referenced_type,
+  #       MAPED_FROM AS reference_source
+  #     FROM ${IA_LIBRARY}.IAALLREFPF
+  #     WHERE REFERENCED_OBJ = :object_name
+  #       AND (:object_type = '*ALL' OR REFERENCED_OBJTYP = :object_type)
+  #     ORDER BY OBJECT_TYPE, OBJECT_NAME
+  #     FETCH FIRST :limit ROWS ONLY
 
   # ── 2. Call Hierarchy — program call tree (callers/callees/both) ────────
   ia_call_hierarchy:
@@ -119,7 +120,7 @@ tools:
       Analyze the blast radius of changing a specific field in a database file.
       Returns all programs that reference the file, cross-referenced with field-level usage.
       Critical before any field-level schema change (resize, rename, retype).
-      Combines IAALLREFPF (cross-references) with IAFIDTL (field details).
+      Combines IAALLREFPF (cross-references) with IAFILEDTL (field details).
     parameters:
       - name: file_name
         type: string
@@ -149,7 +150,7 @@ tools:
         fld.FIELD_DATA_TYPE AS field_type,
         fld.FIELD_USE_MODE AS field_usage
       FROM ${IA_LIBRARY}.IAALLREFPF ref
-      LEFT JOIN ${IA_LIBRARY}.IAFIDTL fld
+      LEFT JOIN ${IA_LIBRARY}.IAFILEDTL fld
         ON fld.MEMBER_NAME = ref.OBJECT_NAME
         AND fld.FIELD_NAME_INTERNAL = :field_name
       WHERE ref.REFERENCED_OBJ = :file_name
@@ -185,9 +186,103 @@ tools:
         IAV_DTYP AS data_type,
         IAV_LEN AS field_length,
         IAV_DEC AS decimal_positions,
-        IAV_DIM AS array_dimension,
-        IAV_DSFLD AS ds_field_flag
+        IAV_DIM AS array_dimension
       FROM ${IA_LIBRARY}.IAPGMVARS
       WHERE IAV_MBR = :member_name
       ORDER BY IAV_VAR
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── 5. Where Used Detail — references with source existence check ──────
+  ia_where_used:
+    name: ia-where-used
+    source: ibmi
+    description: >
+      Enhanced where-used lookup that finds all objects referencing a given object
+      (by name, type, and library) and checks whether each referencing object has
+      source code available. Joins IAALLREFPF with IAOBJMAP to add a SOURCE_EXIST
+      flag (Y/N). Use this when you need library-level precision and want to know
+      which callers still have editable source vs. compiled-only objects.
+    parameters:
+      - name: ref_object_name
+        type: string
+        description: "Referenced object name to search for (e.g., IASRV01SV)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: ref_object_type
+        type: string
+        description: "Referenced object type (e.g., *MODULE, *PGM, *SRVPGM, *FILE)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: ref_object_lib
+        type: string
+        description: "Referenced object library (e.g., #IAOBJ, MYLIB)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        I.IAOOBJNAM AS using_object,
+        I.IAOOBJTYP AS using_type,
+        I.IAOOBJLIB AS using_library,
+        I.IAOOBJATR AS using_attr,
+        I.IAOOBJTXT AS using_text,
+        I.IARUSAGES AS usage_type,
+        I.IAROBJNAM AS referenced_object,
+        I.IAROBJTYP AS referenced_type,
+        I.IAROBJLIB AS referenced_library,
+        CASE WHEN M.MEMBER_LIBR IS NULL OR M.MEMBER_SRCF IS NULL OR
+          M.MEMBER_NAME IS NULL THEN 'N' ELSE 'Y' END AS source_exist
+      FROM ${IA_LIBRARY}.IAALLREFPF I
+      LEFT OUTER JOIN ${IA_LIBRARY}.IAOBJMAP M
+        ON I.IAOOBJNAM = M.OBJECT_NAME
+        AND I.IAOOBJTYP = M.OBJECT_TYPE
+        AND I.IAOOBJLIB = M.OBJECT_LIBR
+      WHERE I.IAROBJNAM = :ref_object_name
+        AND I.IAROBJTYP = :ref_object_type
+        AND I.IAROBJLIB = :ref_object_lib
+      ORDER BY I.IAOOBJTYP, I.IAOOBJNAM
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── 6. Library Files — list all files/tables in the iA library ─────────
+  ia_library_files:
+    name: ia-library-files
+    source: ibmi
+    description: >
+      List all files and tables in the iA repository library.
+      Shows file name, type (TABLE, VIEW, etc.), last altered date,
+      and text description. Use this to discover available files before
+      querying their schema or data.
+      Queries QSYS2.SYSTABLES for the library configured in IA_LIBRARY.
+    parameters:
+      - name: file_type
+        type: string
+        description: "Filter by type: *ALL, TABLE, VIEW, PHYSICAL, LOGICAL (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        TABLE_NAME AS file_name,
+        TABLE_TYPE AS file_type,
+        TABLE_TEXT AS description,
+        LAST_ALTERED_TIMESTAMP AS last_altered
+      FROM QSYS2.SYSTABLES
+      WHERE TABLE_SCHEMA = '${IA_LIBRARY}'
+        AND (:file_type = '*ALL' OR TABLE_TYPE = :file_type)
+      ORDER BY TABLE_NAME
       FETCH FIRST :limit ROWS ONLY
