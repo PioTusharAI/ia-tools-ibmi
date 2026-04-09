@@ -1500,3 +1500,43 @@ tools:
         AND (:opcode = '*ALL' OR OPCODE_NAME = :opcode)
       ORDER BY MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
+
+  # ── Key List Usage — KLIST/KFLD definitions ─────────────────────────────
+  ia_klist_usage:
+    name: ia-klist-usage
+    source: ibmi
+    description: >
+      Find KLIST (key list) definitions and their KFLD (key field) components.
+      Shows how programs build composite keys for CHAIN, SETLL, SETGT operations.
+      Understanding key field usage helps analyze file access patterns.
+      Queries IAPGMKLIST.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name, or *ALL for all members"
+        required: false
+        default: "*ALL"
+      - name: klist_name
+        type: string
+        description: "Key list name to search for, or *ALL"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        LIBRARY_NAME,
+        SRC_PF_NAME AS source_file,
+        KLIST_NAME,
+        KFLD_NAME AS key_field
+      FROM ${IA_LIBRARY}.IAPGMKLIST
+      WHERE (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
+        AND (:klist_name = '*ALL' OR KLIST_NAME = :klist_name)
+      ORDER BY MEMBER_NAME, KLIST_NAME
+      FETCH FIRST :limit ROWS ONLY
