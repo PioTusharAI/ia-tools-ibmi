@@ -1585,3 +1585,51 @@ tools:
         AND (:object_type = '*ALL' OR d.OBJECT_TYPE = :object_type OR d.OBJECT_TYPE IS NULL)
       ORDER BY h.APP_AREA_NAME, d.OBJECT_TYPE, d.OBJECT_NAME
       FETCH FIRST :limit ROWS ONLY
+
+  # ── SQL Name Mapping — long/short name resolution ───────────────────────
+  ia_sql_names:
+    name: ia-sql-names
+    source: ibmi
+    description: >
+      Resolve SQL long names to IBM i short names and vice versa. SQL procedures
+      and functions often have cryptic 10-character system names (like STORE00001)
+      that map to readable long names (like STORE_PRC_LONG_NAME). This tool helps
+      navigate between naming conventions. Queries IA_LONG_SHORT_NAME.
+    parameters:
+      - name: name_pattern
+        type: string
+        description: "Name to search for (supports % wildcards) - searches both long and short names"
+        required: true
+        minLength: 1
+        maxLength: 128
+      - name: routine_type
+        type: string
+        description: "Filter by type: *ALL, PROCEDURE, FUNCTION (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 1000
+    statement: |
+      SELECT
+        ROUTINE_NAME AS sql_long_name,
+        EXTERNAL_NAME AS system_short_name,
+        SPECIFIC_NAME,
+        ROUTINE_TYPE,
+        ROUTINE_BODY,
+        ROUTINE_LIBRARY,
+        EXTERNAL_LIBRARY,
+        LANGUAGE,
+        SOURCE_MEMBER,
+        SOURCE_FILE
+      FROM ${IA_LIBRARY}.IA_LONG_SHORT_NAME
+      WHERE (ROUTINE_NAME LIKE :name_pattern
+             OR EXTERNAL_NAME LIKE :name_pattern
+             OR SOURCE_MEMBER LIKE :name_pattern)
+        AND (:routine_type = '*ALL' OR ROUTINE_TYPE = :routine_type)
+      ORDER BY ROUTINE_NAME
+      FETCH FIRST :limit ROWS ONLY
