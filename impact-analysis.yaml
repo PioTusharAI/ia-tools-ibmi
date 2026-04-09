@@ -1412,3 +1412,40 @@ tools:
         AND (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
       ORDER BY MEMBER_NAME, PR_PI_FLAG, PARAMETER_SEQ
       FETCH FIRST :limit ROWS ONLY
+
+  # ── Pseudocode — AI-generated program summaries ─────────────────────────
+  ia_pseudocode:
+    name: ia-pseudocode
+    source: ibmi
+    description: >
+      Retrieve AI-generated pseudocode documentation for a source member.
+      Provides a plain-English summary of what a program does without reading
+      the raw source code. Useful for quick program understanding and
+      documentation. Queries GENERATED_PSEUDOCODE_DETAILS (IAPSEUDOCP).
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max lines to return (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        MEMBER_TYPE,
+        LIBRARY_NAME,
+        SOURCEFILE_NAME AS source_file,
+        SOURCE_RRN AS line_number,
+        DOCUMENT_SEQ AS doc_sequence,
+        GENERATED_PSEUDOCODE AS pseudocode
+      FROM ${IA_LIBRARY}.GENERATED_PSEUDOCODE_DETAILS
+      WHERE MEMBER_NAME = :member_name
+      ORDER BY SOURCE_RRN, DOCUMENT_SEQ
+      FETCH FIRST :limit ROWS ONLY
