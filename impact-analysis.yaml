@@ -1265,3 +1265,59 @@ tools:
         AND (:procedure_type = '*ALL' OR PROCEDURE_TYPE = :procedure_type)
       ORDER BY PROCEDURE_TYPE, PROCEDURE_NAME
       FETCH FIRST :limit ROWS ONLY
+
+  # ── Procedure Cross-Reference — procedure-level call graph ──────────────
+  ia_procedure_xref:
+    name: ia-procedure-xref
+    source: ibmi
+    description: >
+      Find all procedures that call a specific procedure, or all procedures
+      called by a specific procedure. More granular than ia_call_hierarchy —
+      shows procedure-to-procedure relationships, not just program-to-program.
+      Use for fine-grained impact analysis of procedure changes.
+      Queries PROCEDURE_REFERENCE_DETAIL.
+    parameters:
+      - name: procedure_name
+        type: string
+        description: "Procedure name to analyze"
+        required: true
+        minLength: 1
+        maxLength: 256
+      - name: direction
+        type: string
+        description: "CALLERS (who calls this), CALLEES (what this calls), or BOTH (default: BOTH)"
+        required: false
+        default: "BOTH"
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 2000
+    statement: |
+      SELECT
+        'CALLERS' AS direction,
+        OBJECT_NAME AS caller_object,
+        OBJECT_LIBRARY AS caller_library,
+        OBJECT_TYPE AS caller_type,
+        PROCEDURE_NAME AS caller_procedure,
+        REFERENCED_OBJECT_NAME AS target_object,
+        REFERENCED_PROCEDURE_NAME AS target_procedure
+      FROM ${IA_LIBRARY}.PROCEDURE_REFERENCE_DETAIL
+      WHERE REFERENCED_PROCEDURE_NAME = :procedure_name
+        AND :direction IN ('CALLERS', 'BOTH')
+      UNION ALL
+      SELECT
+        'CALLEES' AS direction,
+        OBJECT_NAME AS caller_object,
+        OBJECT_LIBRARY AS caller_library,
+        OBJECT_TYPE AS caller_type,
+        PROCEDURE_NAME AS caller_procedure,
+        REFERENCED_OBJECT_NAME AS target_object,
+        REFERENCED_PROCEDURE_NAME AS target_procedure
+      FROM ${IA_LIBRARY}.PROCEDURE_REFERENCE_DETAIL
+      WHERE PROCEDURE_NAME = :procedure_name
+        AND :direction IN ('CALLEES', 'BOTH')
+      ORDER BY direction, caller_object
+      FETCH FIRST :limit ROWS ONLY
