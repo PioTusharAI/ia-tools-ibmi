@@ -1633,3 +1633,46 @@ tools:
         AND (:routine_type = '*ALL' OR ROUTINE_TYPE = :routine_type)
       ORDER BY ROUTINE_NAME
       FETCH FIRST :limit ROWS ONLY
+
+  # ── Program Files — file usage with prefix/rename details ───────────────
+  ia_program_files:
+    name: ia-program-files
+    source: ibmi
+    description: >
+      List all files used by a program, including PREFIX keyword mapping,
+      renamed files, and record format details. More detailed than ia_where_used
+      for understanding exactly how a program accesses its files.
+      Queries PROGRAM_TO_FILE_MAPPING_DETAILS.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 1000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        MEMBER_TYPE,
+        LIBRARY,
+        SOURCE_FILE,
+        ACTUAL_FILE AS file_name,
+        RENAMED_FILE,
+        PREFIX,
+        ACTUAL_RCDFMT_NAME AS record_format,
+        RENAMED_RCDFMT_NAME AS renamed_format,
+        QUALIFIED_LIBRARY,
+        EXTERNAL_MEMBER_NAME,
+        FILEINFO_DATASTR AS file_info_ds,
+        INDICATOR_DATASTR AS indicator_ds
+      FROM ${IA_LIBRARY}.PROGRAM_TO_FILE_MAPPING_DETAILS
+      WHERE MEMBER_NAME = :member_name
+      ORDER BY ACTUAL_FILE
+      FETCH FIRST :limit ROWS ONLY
