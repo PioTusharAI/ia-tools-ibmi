@@ -1223,3 +1223,45 @@ tools:
         AND (:member_type = '*ALL' OR MEMBER_TYPE = :member_type)
       ORDER BY MEMBER_LIBRARY, MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
+
+  # ── Service Program Exports — API surface discovery ─────────────────────
+  ia_srvpgm_exports:
+    name: ia-srvpgm-exports
+    source: ibmi
+    description: >
+      List all exported and imported procedures for a service program or module.
+      Essential for understanding the API surface of a *SRVPGM — what procedures
+      it exposes (EXPORT) and what external procedures it depends on (IMPORT).
+      Queries IMPORTED_EXPORTED_PROCEDURE_DETAILS.
+    parameters:
+      - name: object_name
+        type: string
+        description: "Service program or module name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: procedure_type
+        type: string
+        description: "Filter by type: *ALL, EXPORT, IMPORT (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 2000
+    statement: |
+      SELECT
+        OBJECT_NAME,
+        OBJECT_LIBRARY,
+        OBJECT_TYPE,
+        OBJECT_ATTRIBUTE,
+        PROCEDURE_NAME,
+        PROCEDURE_TYPE
+      FROM ${IA_LIBRARY}.IMPORTED_EXPORTED_PROCEDURE_DETAILS
+      WHERE OBJECT_NAME = :object_name
+        AND (:procedure_type = '*ALL' OR PROCEDURE_TYPE = :procedure_type)
+      ORDER BY PROCEDURE_TYPE, PROCEDURE_NAME
+      FETCH FIRST :limit ROWS ONLY
