@@ -54,7 +54,6 @@ For full column details on any table, run:
 | `IAQCLSRC` | Full CL/CLLE source text, line-by-line | MEMBER_NAME, SOURCE_RRN, SOURCE_DATA | Read CL source, find CALL/OVRDBF commands |
 | `IAQCBLSRC` | Full COBOL source text (if COBOL present) | MEMBER_NAME, SOURCE_RRN, SOURCE_DATA | Read COBOL source |
 | `IAQDDSSRC` | DDS source (PF/LF/DSPF/PRTF), line-by-line | MEMBER_NAME, MEMBER_TYPE, SOURCE_RRN, SOURCE_DATA | Read DDS definitions, find field/key declarations |
-| `GENERATED_PSEUDOCODE_DETAILS` | AI-generated pseudocode summaries (sys: IAPSEUDOCP) | MEMBER_NAME, SOURCE_RRN, DOCUMENT_SEQ, GENERATED_PSEUDOCODE | Quick "what does this program do?" without reading raw source |
 
 ## 6. Program Structure
 

@@ -9,7 +9,7 @@
 #   IACALLPARM, IASUBRDTL, IAOVRPF, IAPGMINF, IAPGMREF, IACPGMREF,
 #   OBJECT_DETAILS, IA_DASHBOARD_DETAIL, REPO_CONFIGURATION, IAEXCPLOG,
 #   DDSTODDL_FILE_CONVERSION_DETAILS, IAOBJMAP, IAOBJECT, IA_CODE_INFO,
-#   IADSPDBR, QSYS2.SYSTABLES
+#   IADSPDBR, QSYS2.SYSTABLES, IAQRPGSRC
 
 sources:
   ibmi:
@@ -1137,4 +1137,646 @@ tools:
       FROM ${IA_LIBRARY}.IADSPDBR
       WHERE WHRFI = :file_name
       ORDER BY WHREFI
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── 28. Uncompiled Sources — sources without compiled objects ───────────
+  ia_uncompiled_sources:
+    name: ia-uncompiled-sources
+    source: ibmi
+    description: >
+      Find source members that have no corresponding compiled object.
+      Useful for identifying dormant code, abandoned development, or sources
+      that were never compiled. Complements ia_unused_objects (which finds
+      compiled objects not referenced). Queries MEMBERLIST_DETAILS and IAOBJMAP.
+    parameters:
+      - name: member_type
+        type: string
+        description: "Filter by source type (*ALL, RPGLE, SQLRPGLE, CLLE, etc.)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        d.MEMBER_NAME,
+        d.MEMBER_TYPE,
+        d.SOURCE_FILE,
+        d.SOURCE_LIBRARY,
+        d.NUMBER_OF_RECORD AS LINE_COUNT,
+        d.MBR_CHANGED_CENTURY || d.MBR_CHANGED_DATE AS LAST_CHANGED,
+        d.MBR_DESCRIPTION
+      FROM ${IA_LIBRARY}.MEMBERLIST_DETAILS d
+      LEFT JOIN ${IA_LIBRARY}.IAOBJMAP m
+        ON d.MEMBER_NAME = m.MEMBER_NAME
+        AND d.MEMBER_TYPE = m.MEMBER_TYPE
+      WHERE m.MEMBER_NAME IS NULL
+        AND (:member_type = '*ALL' OR d.MEMBER_TYPE = :member_type)
+      ORDER BY d.MEMBER_TYPE, d.MEMBER_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Copybook Impact — find programs including a copybook ────────────────
+  ia_copybook_impact:
+    name: ia-copybook-impact
+    source: ibmi
+    description: >
+      Find all source members that include a specific copybook via /COPY or /INCLUDE.
+      Critical for understanding the blast radius of copybook changes — any modification
+      to a copybook affects all including members. Shows the exact line number where
+      the copy directive appears. Queries COPYBOOK_MEMBER_DETAIL.
+    parameters:
+      - name: copybook_name
+        type: string
+        description: "Copybook member name to search for (e.g., CUSTDS, ABORTERR)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: member_type
+        type: string
+        description: "Filter by including member type: *ALL, RPGLE, SQLRPGLE, CBLLE (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME AS including_member,
+        MEMBER_TYPE AS member_type,
+        MEMBER_LIBRARY AS member_library,
+        MEMBER_SOURCE_FILE AS source_file,
+        MEMBER_RRN_NUMBER AS copy_line_number,
+        COPYBOOK_MEMBER_NAME AS copybook_name,
+        COPYBOOK_MEMBER_LIBRARY AS copybook_library,
+        COPYBOOK_SOURCE_FILE AS copybook_source_file,
+        COPYBOOK_DIRECTIVES AS directive
+      FROM ${IA_LIBRARY}.COPYBOOK_MEMBER_DETAIL
+      WHERE COPYBOOK_MEMBER_NAME = :copybook_name
+        AND (:member_type = '*ALL' OR MEMBER_TYPE = :member_type)
+      ORDER BY MEMBER_LIBRARY, MEMBER_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Service Program Exports — API surface discovery ─────────────────────
+  ia_srvpgm_exports:
+    name: ia-srvpgm-exports
+    source: ibmi
+    description: >
+      List all exported and imported procedures for a service program or module.
+      Essential for understanding the API surface of a *SRVPGM — what procedures
+      it exposes (EXPORT) and what external procedures it depends on (IMPORT).
+      Queries IMPORTED_EXPORTED_PROCEDURE_DETAILS.
+    parameters:
+      - name: object_name
+        type: string
+        description: "Service program or module name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: procedure_type
+        type: string
+        description: "Filter by type: *ALL, EXPORT, IMPORT (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 2000
+    statement: |
+      SELECT
+        OBJECT_NAME,
+        OBJECT_LIBRARY,
+        OBJECT_TYPE,
+        OBJECT_ATTRIBUTE,
+        PROCEDURE_NAME,
+        PROCEDURE_TYPE
+      FROM ${IA_LIBRARY}.IMPORTED_EXPORTED_PROCEDURE_DETAILS
+      WHERE OBJECT_NAME = :object_name
+        AND (:procedure_type = '*ALL' OR PROCEDURE_TYPE = :procedure_type)
+      ORDER BY PROCEDURE_TYPE, PROCEDURE_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Procedure Cross-Reference — procedure-level call graph ──────────────
+  ia_procedure_xref:
+    name: ia-procedure-xref
+    source: ibmi
+    description: >
+      Find all procedures that call a specific procedure, or all procedures
+      called by a specific procedure. More granular than ia_call_hierarchy —
+      shows procedure-to-procedure relationships, not just program-to-program.
+      Use for fine-grained impact analysis of procedure changes.
+      Queries PROCEDURE_REFERENCE_DETAIL.
+    parameters:
+      - name: procedure_name
+        type: string
+        description: "Procedure name to analyze"
+        required: true
+        minLength: 1
+        maxLength: 256
+      - name: direction
+        type: string
+        description: "CALLERS (who calls this), CALLEES (what this calls), or BOTH (default: BOTH)"
+        required: false
+        default: "BOTH"
+      - name: limit
+        type: integer
+        description: "Max results (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 2000
+    statement: |
+      SELECT
+        'CALLERS' AS direction,
+        OBJECT_NAME AS caller_object,
+        OBJECT_LIBRARY AS caller_library,
+        OBJECT_TYPE AS caller_type,
+        PROCEDURE_NAME AS caller_procedure,
+        REFERENCED_OBJECT_NAME AS target_object,
+        REFERENCED_PROCEDURE_NAME AS target_procedure
+      FROM ${IA_LIBRARY}.PROCEDURE_REFERENCE_DETAIL
+      WHERE REFERENCED_PROCEDURE_NAME = :procedure_name
+        AND :direction IN ('CALLERS', 'BOTH')
+      UNION ALL
+      SELECT
+        'CALLEES' AS direction,
+        OBJECT_NAME AS caller_object,
+        OBJECT_LIBRARY AS caller_library,
+        OBJECT_TYPE AS caller_type,
+        PROCEDURE_NAME AS caller_procedure,
+        REFERENCED_OBJECT_NAME AS target_object,
+        REFERENCED_PROCEDURE_NAME AS target_procedure
+      FROM ${IA_LIBRARY}.PROCEDURE_REFERENCE_DETAIL
+      WHERE PROCEDURE_NAME = :procedure_name
+        AND :direction IN ('CALLEES', 'BOTH')
+      ORDER BY direction, caller_object
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── CL Job Submissions — batch job and scheduler detection ──────────────
+  ia_cl_jobs:
+    name: ia-cl-jobs
+    source: ibmi
+    description: >
+      Find SBMJOB and CALL commands in CL programs, including job queue,
+      job description, and hold status. Critical for understanding batch
+      job scheduling — programs invoked via SBMJOB may appear "unused" in
+      simple cross-reference queries but are actually scheduler-invoked.
+      Queries IAVARCAL.
+    parameters:
+      - name: member_name
+        type: string
+        description: "CL member name, or *ALL for all members"
+        required: false
+        default: "*ALL"
+      - name: call_type
+        type: string
+        description: "Filter by type: *ALL, SBMJOB, DIRECT (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        IVCAL_MBR AS cl_member,
+        IVCAL_FILE AS source_file,
+        IVCAL_LIB AS library,
+        IVCAL_TYP AS call_type,
+        IVCAL_PGM AS called_program,
+        IVCAL_VARM AS variable_call,
+        IVCAL_JOB AS job_name,
+        IVCAL_JOBD AS job_description,
+        IVCAL_JOBQ AS job_queue,
+        IVCAL_HOLD AS hold_flag
+      FROM ${IA_LIBRARY}.IAVARCAL
+      WHERE (:member_name = '*ALL' OR IVCAL_MBR = :member_name)
+        AND (:call_type = '*ALL' OR IVCAL_TYP = :call_type)
+      ORDER BY IVCAL_MBR, IVCAL_TYP
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Procedure Parameters — PR/PI signatures ─────────────────────────────
+  ia_procedure_params:
+    name: ia-procedure-params
+    source: ibmi
+    description: >
+      Get the parameter signature of a procedure — parameter names, types,
+      keywords (CONST, VALUE, OPTIONS), and sequence. Shows both PR (prototype)
+      and PI (procedure interface) declarations. Essential for understanding
+      how to call a procedure correctly. Queries IAPRCPARM.
+    parameters:
+      - name: procedure_name
+        type: string
+        description: "Procedure name to look up"
+        required: true
+        minLength: 1
+        maxLength: 256
+      - name: member_name
+        type: string
+        description: "Filter by source member name (optional)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 1000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        PROCEDURE_NAME,
+        PR_PI_FLAG AS declaration_type,
+        PARAMETER_SEQ AS param_sequence,
+        PARAMETER_NAME AS param_name,
+        PARM_DATA_TYPE AS data_type,
+        PARM_LENGHT AS param_length,
+        PARM_DEC_POS AS decimal_positions,
+        KEYWORDS
+      FROM ${IA_LIBRARY}.IAPRCPARM
+      WHERE PROCEDURE_NAME = :procedure_name
+        AND (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
+      ORDER BY MEMBER_NAME, PR_PI_FLAG, PARAMETER_SEQ
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Variable Operations — assignments, declarations, BIFs ───────────────
+  ia_variable_ops:
+    name: ia-variable-ops
+    source: ibmi
+    description: >
+      Find all operations involving a variable — declarations (DCL-DS, DCLVAR),
+      assignments (EVAL), comparisons, and BIF usage. Useful for tracing data
+      flow and understanding how a variable is used throughout a program.
+      Queries IAVARREL.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: variable_name
+        type: string
+        description: "Variable name to search for, or *ALL for all variables"
+        required: false
+        default: "*ALL"
+      - name: opcode
+        type: string
+        description: "Filter by opcode: *ALL, DCL-DS, DCLVAR, EVAL, etc. (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        OPCODE_NAME AS opcode,
+        FACTOR1_VAL AS factor1,
+        FACTOR2_VAL AS factor2,
+        RESULT_VAL AS result,
+        BIF AS builtin_function
+      FROM ${IA_LIBRARY}.IAVARREL
+      WHERE MEMBER_NAME = :member_name
+        AND (:variable_name = '*ALL'
+             OR FACTOR1_VAL = :variable_name
+             OR FACTOR2_VAL = :variable_name
+             OR RESULT_VAL = :variable_name)
+        AND (:opcode = '*ALL' OR OPCODE_NAME = :opcode)
+      ORDER BY MEMBER_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Key List Usage — KLIST/KFLD definitions ─────────────────────────────
+  ia_klist_usage:
+    name: ia-klist-usage
+    source: ibmi
+    description: >
+      Find KLIST (key list) definitions and their KFLD (key field) components.
+      Shows how programs build composite keys for CHAIN, SETLL, SETGT operations.
+      Understanding key field usage helps analyze file access patterns.
+      Queries IAPGMKLIST.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name, or *ALL for all members"
+        required: false
+        default: "*ALL"
+      - name: klist_name
+        type: string
+        description: "Key list name to search for, or *ALL"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        LIBRARY_NAME,
+        SRC_PF_NAME AS source_file,
+        KLIST_NAME,
+        KFLD_NAME AS key_field
+      FROM ${IA_LIBRARY}.IAPGMKLIST
+      WHERE (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
+        AND (:klist_name = '*ALL' OR KLIST_NAME = :klist_name)
+      ORDER BY MEMBER_NAME, KLIST_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Application Areas — scoped project analysis ─────────────────────────
+  ia_application_area:
+    name: ia-application-area
+    source: ibmi
+    description: >
+      List application areas (named project scopes) and optionally the objects
+      in each area. Use *LIST to see all defined areas, or provide an area name
+      to see its objects. Application areas enable scoped impact analysis —
+      filter queries to a specific project or subsystem.
+      Queries APPLICATION_AREA_HEADER and APPLICATION_AREA_OBJECT_DETAILS.
+    parameters:
+      - name: area_name
+        type: string
+        description: "Application area name, or *LIST to list all areas"
+        required: false
+        default: "*LIST"
+      - name: object_type
+        type: string
+        description: "Filter objects by type: *ALL, *PGM, *SRVPGM, *FILE (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        h.APP_AREA_NAME AS area_name,
+        h.APP_AREA_DESC AS description,
+        COALESCE(d.OBJECT_NAME, '') AS object_name,
+        COALESCE(d.OBJECT_TYPE, '') AS object_type,
+        h.CREATED_USER AS created_by,
+        h.CREATED_TIMESTAMP AS created_on
+      FROM ${IA_LIBRARY}.APPLICATION_AREA_HEADER h
+      LEFT JOIN ${IA_LIBRARY}.APPLICATION_AREA_OBJECT_DETAILS d
+        ON h.APP_AREA_NAME = d.APP_AREA_NAME
+        AND (:area_name != '*LIST')
+      WHERE (:area_name = '*LIST' OR h.APP_AREA_NAME = :area_name)
+        AND (:object_type = '*ALL' OR d.OBJECT_TYPE = :object_type OR d.OBJECT_TYPE IS NULL)
+      ORDER BY h.APP_AREA_NAME, d.OBJECT_TYPE, d.OBJECT_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── SQL Name Mapping — long/short name resolution ───────────────────────
+  ia_sql_names:
+    name: ia-sql-names
+    source: ibmi
+    description: >
+      Resolve SQL long names to IBM i short names and vice versa. SQL procedures
+      and functions often have cryptic 10-character system names (like STORE00001)
+      that map to readable long names (like STORE_PRC_LONG_NAME). This tool helps
+      navigate between naming conventions. Queries IA_LONG_SHORT_NAME.
+    parameters:
+      - name: name_pattern
+        type: string
+        description: "Name to search for (supports % wildcards) - searches both long and short names"
+        required: true
+        minLength: 1
+        maxLength: 128
+      - name: routine_type
+        type: string
+        description: "Filter by type: *ALL, PROCEDURE, FUNCTION (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 1000
+    statement: |
+      SELECT
+        ROUTINE_NAME AS sql_long_name,
+        EXTERNAL_NAME AS system_short_name,
+        SPECIFIC_NAME,
+        ROUTINE_TYPE,
+        ROUTINE_BODY,
+        ROUTINE_LIBRARY,
+        EXTERNAL_LIBRARY,
+        LANGUAGE,
+        SOURCE_MEMBER,
+        SOURCE_FILE
+      FROM ${IA_LIBRARY}.IA_LONG_SHORT_NAME
+      WHERE (ROUTINE_NAME LIKE :name_pattern
+             OR EXTERNAL_NAME LIKE :name_pattern
+             OR SOURCE_MEMBER LIKE :name_pattern)
+        AND (:routine_type = '*ALL' OR ROUTINE_TYPE = :routine_type)
+      ORDER BY ROUTINE_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── Program Files — file usage with prefix/rename details ───────────────
+  ia_program_files:
+    name: ia-program-files
+    source: ibmi
+    description: >
+      List all files used by a program, including PREFIX keyword mapping,
+      renamed files, and record format details. More detailed than ia_where_used
+      for understanding exactly how a program accesses its files.
+      Queries PROGRAM_TO_FILE_MAPPING_DETAILS.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Source member name"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max results (default: 100)"
+        required: false
+        default: 100
+        min: 1
+        max: 1000
+    statement: |
+      SELECT
+        MEMBER_NAME,
+        MEMBER_TYPE,
+        LIBRARY,
+        SOURCE_FILE,
+        ACTUAL_FILE AS file_name,
+        RENAMED_FILE,
+        PREFIX,
+        ACTUAL_RCDFMT_NAME AS record_format,
+        RENAMED_RCDFMT_NAME AS renamed_format,
+        QUALIFIED_LIBRARY,
+        EXTERNAL_MEMBER_NAME,
+        FILEINFO_DATASTR AS file_info_ds,
+        INDICATOR_DATASTR AS indicator_ds
+      FROM ${IA_LIBRARY}.PROGRAM_TO_FILE_MAPPING_DETAILS
+      WHERE MEMBER_NAME = :member_name
+      ORDER BY ACTUAL_FILE
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── RPG Source Code — read RPG source lines ──────────────────────────────
+  ia_rpg_source:
+    name: ia-rpg-source
+    source: ibmi
+    description: >
+      Read the actual RPG source code for a member, line by line.
+      Returns source text with line numbers, spec types, and format classification.
+      Optionally filter by RPG specification type (C, D, F, H, I, O, P) to see
+      only calc specs, definitions, file declarations, etc.
+      Queries IAQRPGSRC. Use ia_source_code for member metadata (location, line counts).
+    parameters:
+      - name: member_name
+        type: string
+        description: "RPG source member name (e.g., CUSTMAST, ORDENT01)"
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: source_spec
+        type: string
+        description: "Filter by RPG spec type: C (calc), D (definition), F (file), H (header), I (input), O (output), P (procedure), or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+      - name: library_name
+        type: string
+        description: "Filter by source library, or *ALL for all libraries (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max source lines to return (default: 5000)"
+        required: false
+        default: 5000
+        min: 1
+        max: 10000
+    statement: |
+      SELECT
+        LIBRARY_NAME, MEMBER_NAME, MEMBER_TYPE,
+        SOURCE_RRN, SOURCE_SEQ, SOURCE_SPEC,
+        SRCLIN_TYPE, SOURCE_DATA
+      FROM ${IA_LIBRARY}.IAQRPGSRC
+      WHERE MEMBER_NAME = :member_name
+        AND (:source_spec = '*ALL' OR SOURCE_SPEC = :source_spec)
+        AND (:library_name = '*ALL' OR LIBRARY_NAME = :library_name)
+      ORDER BY LIBRARY_NAME, SOURCE_RRN
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── RPG Source Search — cross-member keyword search ──────────────────────
+  ia_rpg_source_search:
+    name: ia-rpg-source-search
+    source: ibmi
+    description: >
+      Search across all RPG source members for lines containing a keyword or pattern.
+      Case-insensitive. Use this to find embedded SQL table references, API calls
+      (QCMDEXC, system APIs), hardcoded values, deprecated features (GOTO),
+      or any text pattern across the RPG codebase. Queries IAQRPGSRC.
+    parameters:
+      - name: search_text
+        type: string
+        description: "Text to search for in source lines (case-insensitive)"
+        required: true
+        minLength: 1
+      - name: member_name
+        type: string
+        description: "Limit search to a specific member, or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: member_type
+        type: string
+        description: "Filter by member type: SQLRPGLE, RPGLE, RPG, or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max matching lines to return (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 2000
+    statement: |
+      SELECT
+        MEMBER_NAME, LIBRARY_NAME, MEMBER_TYPE,
+        SOURCE_RRN, SOURCE_DATA
+      FROM ${IA_LIBRARY}.IAQRPGSRC
+      WHERE UPPER(SOURCE_DATA) LIKE '%' || UPPER(:search_text) || '%'
+        AND (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
+        AND (:member_type = '*ALL' OR MEMBER_TYPE = :member_type)
+      ORDER BY MEMBER_NAME, SOURCE_RRN
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── RPG Source Stats — modernization metrics and cross-library comparison ─
+  ia_rpg_source_stats:
+    name: ia-rpg-source-stats
+    source: ibmi
+    description: >
+      Get source format statistics per RPG member: free-format vs fixed-format line counts,
+      comment-to-code ratio, and modernization readiness percentage. When a member exists
+      in multiple libraries, each library appears as a separate row for cross-library
+      comparison. Run with member_name=*ALL for a full portfolio modernization dashboard.
+      Queries IAQRPGSRC. SRCLIN_TYPE codes: FFR/FFC = free-format code, FX3/FX4 = fixed-format
+      code, 4-char types (FFRC, FX3C, etc.) = comments/templates.
+    parameters:
+      - name: member_name
+        type: string
+        description: "Member name, or *ALL for portfolio-wide stats (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: library_name
+        type: string
+        description: "Filter by library, or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max rows to return (default: 500)"
+        required: false
+        default: 500
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME, LIBRARY_NAME, MEMBER_TYPE,
+        COUNT(*) AS TOTAL_LINES,
+        SUM(CASE WHEN SRCLIN_TYPE LIKE 'FF%' THEN 1 ELSE 0 END) AS FREE_FORMAT_LINES,
+        SUM(CASE WHEN SRCLIN_TYPE LIKE 'FX%' THEN 1 ELSE 0 END) AS FIXED_FORMAT_LINES,
+        SUM(CASE WHEN SRCLIN_TYPE IN ('FFR', 'FFC', 'FX3', 'FX4') THEN 0 ELSE 1 END) AS COMMENT_LINES,
+        SUM(CASE WHEN SRCLIN_TYPE IN ('FFR', 'FFC', 'FX3', 'FX4') THEN 1 ELSE 0 END) AS CODE_LINES,
+        CASE WHEN COUNT(*) > 0
+          THEN DEC(SUM(CASE WHEN SRCLIN_TYPE LIKE 'FF%' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 5, 1)
+          ELSE 0 END AS FREE_FORMAT_PCT
+      FROM ${IA_LIBRARY}.IAQRPGSRC
+      WHERE (:member_name = '*ALL' OR MEMBER_NAME = :member_name)
+        AND (:library_name = '*ALL' OR LIBRARY_NAME = :library_name)
+      GROUP BY MEMBER_NAME, LIBRARY_NAME, MEMBER_TYPE
+      ORDER BY MEMBER_NAME, LIBRARY_NAME
       FETCH FIRST :limit ROWS ONLY

@@ -66,10 +66,32 @@ Call `ia_program_variables` → Group: standalone fields, DS subfields (likely D
 `execute_sql` on IADSPDBR (SQL#8) → Interpret WHTYPE: D=data, I=access path, V=SQL VIEW, C=constraint → Chain `ia_where_used` on each logical file to find programs referencing them.
 
 ### P8: "Find dead code"
-`ia_unused_objects` for objects with zero refs → `ia_object_lifecycle` to confirm last-used date → `ia_dashboard` to cross-check category → Always flag members that may be scheduler-invoked.
+**Compiled objects:** `ia_unused_objects` for objects with zero refs → `ia_object_lifecycle` to confirm last-used date → `ia_dashboard` to cross-check category → Always flag members that may be scheduler-invoked.
+**Orphaned sources:** `ia_uncompiled_sources` for source members never compiled into objects → Check LAST_CHANGED date to identify abandoned development.
 
 ### P9: "Where does this program actually write?"
 `ia_file_overrides` for the member → If overrides exist, also run `ia_override_chain` → Combine with `ia_where_used` on each resolved target file to confirm downstream impact.
+
+### P10: "What programs include this copybook?" (Copybook Impact)
+`ia_copybook_impact(copybook_name="CUSTDS")` → Returns all members with /COPY directive + line numbers → Group by member_type (RPGLE, SQLRPGLE, CBLLE) → Flag: high count = high-risk copybook change.
+
+### P11: "What does this service program export?" (API Surface)
+`ia_srvpgm_exports(object_name="MYSRVPGM", procedure_type="EXPORT")` → Lists all exported procedures → Chain `ia_procedure_xref` on specific procedures to find callers → For parameter signatures, use `ia_procedure_params`.
+
+### P12: "What procedures call procedure X?" (Procedure-Level Impact)
+`ia_procedure_xref(procedure_name="PROCESSORDER", direction="CALLERS")` → More granular than ia_call_hierarchy → Shows procedure-to-procedure relationships → Critical for ILE modular code.
+
+### P13: "Find batch jobs and scheduler calls" (Job Detection)
+`ia_cl_jobs(call_type="SBMJOB")` → Returns SBMJOB calls with job queue, hold flag → Critical: programs appearing "unused" may be scheduler-invoked → Cross-reference with ia_unused_objects to avoid false positives.
+
+### P14: "What files does program X use (with prefixes)?"
+`ia_program_files(member_name="ORDENTRY")` → Shows files with PREFIX, RENAME, record format details → More detailed than ia_where_used for understanding file access patterns.
+
+### P15: "Scope analysis to a project area"
+`ia_application_area(area_name="*LIST")` → List all defined areas → Then `ia_application_area(area_name="MYPROJECT")` → Returns objects in that area for scoped analysis.
+
+### P16: "Resolve SQL long name to system name"
+`ia_sql_names(name_pattern="STORE%")` → Maps SQL long names ↔ 10-char system names → Essential for SQL procedure/function analysis.
 
 ## Risk Rubric
 
@@ -114,6 +136,11 @@ Call `ia_program_variables` → Group: standalone fields, DS subfields (likely D
    - `ia_call_hierarchy` — call tree for X?
    - `ia_program_detail` — tell me about program X?
    - `ia_code_complexity` — complexity hotspots?
-   - `ia_unused_objects` — dead code?
+   - `ia_unused_objects` — dead compiled objects?
+   - `ia_uncompiled_sources` — orphaned sources?
    - `ia_object_lookup` — find object named X?
    - `ia_dashboard` — repository overview?
+   - `ia_copybook_impact` — what includes copybook X?
+   - `ia_srvpgm_exports` — what does SRVPGM X export?
+   - `ia_procedure_xref` — what calls procedure X?
+   - `ia_cl_jobs` — batch job detection?

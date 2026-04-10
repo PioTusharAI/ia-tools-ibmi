@@ -41,8 +41,9 @@ Returns: All programs affected, their usage type (READ/WRITE/UPDATE), and object
 
 **Efficient approach:**
 ```
-1. ia_unused_objects(object_type="*PGM", limit=100) → Zero-reference objects
-2. ia_code_complexity(member_name="*ALL", limit=50) → Also shows CALLED_BY_COUNT (0 = dead)
+1. ia_unused_objects(object_type="*PGM", limit=100) → Zero-reference compiled objects
+2. ia_uncompiled_sources(member_type="RPGLE", limit=100) → Orphaned sources never compiled
+3. ia_code_complexity(member_name="*ALL", limit=50) → Also shows CALLED_BY_COUNT (0 = dead)
 ```
 
 **No need to chain** `ia_object_lifecycle` for every object — the unused_objects query already confirms zero references. Only check lifecycle for specific objects the user wants to investigate.
@@ -152,9 +153,87 @@ Returns: Object counts by category, line counts, library mapping — comprehensi
 
 ---
 
-## Tier 4: Source Code Analysis
+## Tier 4: Advanced Analysis (New Tools)
 
-### QF-12: "Deep token-level analysis"
+### QF-16: "Copybook change impact analysis"
+
+**Single query:**
+```
+ia_copybook_impact(copybook_name="CUSTDS", limit=200)
+```
+Returns: All members including the copybook, with line numbers and member types.
+
+**Chain only if** user wants to understand the programs that use those members — then use `ia_where_used` on specific compiled objects.
+
+---
+
+### QF-17: "Service program API surface"
+
+**Two-query approach:**
+```
+1. ia_srvpgm_exports(object_name="IASRV01SV", procedure_type="EXPORT") → Exported procedures
+2. ia_procedure_params(procedure_name="<specific>") → Parameter signatures
+```
+
+**Alternative:** For procedure callers, use `ia_procedure_xref(procedure_name="X", direction="CALLERS")`.
+
+---
+
+### QF-18: "Procedure-level call graph"
+
+**Single query:**
+```
+ia_procedure_xref(procedure_name="PROCESSORDER", direction="BOTH", limit=100)
+```
+Returns: Both callers and callees at procedure level — more granular than program-level ia_call_hierarchy.
+
+---
+
+### QF-19: "Find batch jobs and scheduler calls"
+
+**Single query:**
+```
+ia_cl_jobs(call_type="SBMJOB", limit=100)
+```
+Returns: SBMJOB calls with job name, job queue, hold flag.
+
+**Critical insight:** Cross-reference with `ia_unused_objects` — programs appearing "unused" may actually be scheduler-invoked.
+
+---
+
+### QF-20: "Program file usage with prefixes"
+
+**Single query:**
+```
+ia_program_files(member_name="ORDENTRY", limit=50)
+```
+Returns: Files used with PREFIX, RENAME, record format — more detailed than ia_where_used for file analysis.
+
+---
+
+### QF-21: "Scoped analysis by application area"
+
+**Two-query approach:**
+```
+1. ia_application_area(area_name="*LIST") → List all defined areas
+2. ia_application_area(area_name="MYPROJECT") → Objects in specific area
+```
+
+---
+
+### QF-22: "SQL name resolution"
+
+**Single query:**
+```
+ia_sql_names(name_pattern="STORE%", limit=50)
+```
+Returns: SQL long names ↔ 10-char system names mapping.
+
+---
+
+## Tier 5: Source Code Analysis
+
+### QF-23: "Deep token-level analysis"
 
 **For RPG:**
 ```
@@ -170,7 +249,7 @@ Returns: Object counts by category, line counts, library mapping — comprehensi
 
 ---
 
-### QF-13: "Find all uses of a specific variable/field name"
+### QF-24: "Find all uses of a specific variable/field name"
 
 **Single query:**
 ```
@@ -181,9 +260,9 @@ ia_field_impact(field_name="ORDAMT", file_name="*ALL", limit=500)
 
 ---
 
-## Tier 5: Discovery & Inventory
+## Tier 6: Discovery & Inventory
 
-### QF-14: "What objects exist matching a pattern?"
+### QF-25: "What objects exist matching a pattern?"
 
 **Single query:**
 ```
@@ -194,7 +273,7 @@ Supports `%` wildcards. Returns type, library, attribute for all matches.
 
 ---
 
-### QF-15: "List all service programs and their callers"
+### QF-26: "List all service programs and their callers"
 
 **Two-query approach:**
 ```
@@ -220,13 +299,23 @@ User Question
     ├─► "Tell me about program X" ► ia_program_detail section=*ALL (single call)
     │                               └─► Covers: calls, files, subroutines, vars, overrides
     │
-    ├─► "Dead code?" ────────────► ia_unused_objects (single call)
+    ├─► "Dead code (compiled)?" ─► ia_unused_objects (single call)
+    │
+    ├─► "Orphaned sources?" ─────► ia_uncompiled_sources (single call)
     │
     ├─► "Complexity hotspots?" ──► ia_code_complexity member_name=*ALL (single call)
     │
     ├─► "Find object named X" ───► ia_object_lookup with % wildcards (single call)
     │
-    └─► "Repository overview" ───► ia_dashboard (single call)
+    ├─► "Repository overview" ───► ia_dashboard (single call)
+    │
+    ├─► "Copybook change impact?" ─► ia_copybook_impact (single call)
+    │
+    ├─► "SRVPGM API surface?" ────► ia_srvpgm_exports (single call)
+    │
+    ├─► "Procedure callers?" ─────► ia_procedure_xref (single call)
+    │
+    └─► "Batch jobs?" ────────────► ia_cl_jobs (single call)
 ```
 
 ---

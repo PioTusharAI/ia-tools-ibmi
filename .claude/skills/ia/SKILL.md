@@ -22,10 +22,16 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | "LFs/views over file X?" | `ia_file_dependencies` | All dependent logical files, indexes, views |
 | "Tell me about program X" | `ia_program_detail` (section=*ALL) | Calls, files, subs, vars, overrides — ALL in one query |
 | "Call tree for X?" | `ia_call_hierarchy` | Callers + callees |
-| "Dead code?" | `ia_unused_objects` | Zero-reference objects |
+| "Dead code?" | `ia_unused_objects` | Zero-reference compiled objects |
+| "Orphaned sources?" | `ia_uncompiled_sources` | Sources without compiled objects |
 | "Complexity hotspots?" | `ia_code_complexity` (member=*ALL) | All programs ranked by complexity |
 | "Find object named X?" | `ia_object_lookup` | Type/library/attr (supports % wildcards) |
 | "Repository overview?" | `ia_dashboard` | Full inventory stats |
+| "Copybook impact?" | `ia_copybook_impact` | Programs including the copybook |
+| "SRVPGM exports?" | `ia_srvpgm_exports` | Exported/imported procedures |
+| "Procedure callers?" | `ia_procedure_xref` | Procedure-level call graph |
+| "Batch jobs?" | `ia_cl_jobs` | SBMJOB calls in CL programs |
+| "Procedure signature?" | `ia_procedure_params` | PR/PI parameter definitions |
 
 ### When to Chain (and When NOT to)
 
@@ -43,9 +49,9 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 
 ## Tool Preference Rule
 
-**Prefer dedicated `ia_*` MCP tools over `execute_sql`.** The repo ships 27 purpose-built tools that are parameter-validated, bounded, and tested. **Must only fall back** to `execute_sql` when no dedicated tool fits (then consult [references/sql-patterns.md](references/sql-patterns.md)).
+**Prefer dedicated `ia_*` MCP tools over `execute_sql`.** The repo ships 38 purpose-built tools that are parameter-validated, bounded, and tested. **Must only fall back** to `execute_sql` when no dedicated tool fits (then consult [references/sql-patterns.md](references/sql-patterns.md)).
 
-## Dedicated Tools (27)
+## Dedicated Tools (41)
 
 ### Discovery — start here
 | Tool | Purpose |
@@ -90,6 +96,9 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 ### Source-level analysis
 | Tool | Purpose |
 |------|---------|
+| `ia_rpg_source` | Read RPG source code line-by-line with optional spec-type filter (IAQRPGSRC) |
+| `ia_rpg_source_search` | Cross-member keyword search in RPG source (IAQRPGSRC) |
+| `ia_rpg_source_stats` | Modernization metrics: free-format %, comment ratio, cross-library (IAQRPGSRC) |
 | `ia_rpg_source_tokens` | Token-level RPG parse (IAPGMREF) |
 | `ia_cl_source_tokens` | Token-level CL parse (IACPGMREF) |
 
@@ -98,9 +107,24 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 |------|---------|
 | `ia_object_lifecycle` | Creation/change/last-used dates, days-used count |
 | `ia_code_complexity` | IF/DO/SQL/GOTO/PROC counts, executable lines, call stats |
-| `ia_unused_objects` | Dead code candidates (never referenced) |
+| `ia_unused_objects` | Dead code candidates (compiled but never referenced) |
+| `ia_uncompiled_sources` | Orphaned sources (never compiled into objects) |
 | `ia_dds_to_ddl_status` | DDS→DDL modernization tracking |
 | `ia_exception_log` | iA parser errors per member |
+
+### Advanced Analysis
+| Tool | Purpose |
+|------|---------|
+| `ia_copybook_impact` | Programs including a copybook via /COPY |
+| `ia_srvpgm_exports` | Service program exported/imported procedures |
+| `ia_procedure_xref` | Procedure-level cross-reference |
+| `ia_procedure_params` | Procedure PR/PI signatures |
+| `ia_cl_jobs` | CL SBMJOB/CALL detection with job queue info |
+| `ia_variable_ops` | Variable declarations, assignments, BIF usage |
+| `ia_klist_usage` | KLIST/KFLD key list definitions |
+| `ia_application_area` | Scoped project areas and their objects |
+| `ia_sql_names` | SQL long/short name mapping |
+| `ia_program_files` | Program file usage with PREFIX/RENAME |
 
 ### Fallback
 | Tool | Purpose |
@@ -126,16 +150,23 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | Inventory of objects by type? | `ia_object_list` | — |
 | Program metadata / compile info? | `ia_program_info` | [#14](references/sql-patterns.md) |
 | Lifecycle / last-used dates? | `ia_object_lifecycle` | — |
-| Dead code candidates? | `ia_unused_objects` | [#15](references/sql-patterns.md) |
+| Dead code (compiled)? | `ia_unused_objects` | [#15](references/sql-patterns.md) |
+| Dead code (sources)? | `ia_uncompiled_sources` | — |
 | Complexity hotspots? | `ia_code_complexity` | — |
 | Circular call chains? | `ia_circular_deps` | — |
 | Repo health / member inventory? | `ia_dashboard` | — |
 | List tables in iA library? | `ia_library_files` | [#7](references/sql-patterns.md) |
 | Raw RPG/CL token stream? | `ia_rpg_source_tokens`, `ia_cl_source_tokens` | — |
-| Source code for member X? | `execute_sql` on IAQRPGSRC / IAQCLSRC / IAQDDSSRC | [#16, #17](references/sql-patterns.md) |
+| RPG source code for member X? | `ia_rpg_source` (optional `source_spec` filter) | — |
+| Search RPG source for keyword? | `ia_rpg_source_search` | — |
+| Modernization / format stats? | `ia_rpg_source_stats` (member or portfolio) | — |
+| CL/DDS source code for member X? | `execute_sql` on IAQCLSRC / IAQDDSSRC | [#16, #17](references/sql-patterns.md) |
 | Logical files over physical file X? | `ia_file_dependencies` | — |
-| Copybook impact? | `execute_sql` on COPYBOOK_MEMBER_DETAIL | [#11](references/sql-patterns.md) |
-| Service program exports? | `execute_sql` on IMPORTED_EXPORTED_PROCEDURE_DETAILS | [#12](references/sql-patterns.md) |
+| Copybook change impact? | `ia_copybook_impact` | — |
+| SRVPGM exports/imports? | `ia_srvpgm_exports` | [#12](references/sql-patterns.md) |
+| Procedure-level callers? | `ia_procedure_xref` | — |
+| Procedure signature? | `ia_procedure_params` | — |
+| Batch job detection? | `ia_cl_jobs` | — |
 | Anything else | Find the table in [tables.md](references/tables.md), schema via `describe_sql_object`, query via `execute_sql` |
 
 ## Parameter Rules for Dedicated Tools
