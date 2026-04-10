@@ -87,13 +87,10 @@ Call `ia_program_variables` → Group: standalone fields, DS subfields (likely D
 ### P14: "What files does program X use (with prefixes)?"
 `ia_program_files(member_name="ORDENTRY")` → Shows files with PREFIX, RENAME, record format details → More detailed than ia_where_used for understanding file access patterns.
 
-### P15: "Get AI summary of what program X does"
-`ia_pseudocode(member_name="ORDENTRY")` → Returns AI-generated pseudocode documentation → Quick understanding without reading raw source → Check if populated for the specific member.
-
-### P16: "Scope analysis to a project area"
+### P15: "Scope analysis to a project area"
 `ia_application_area(area_name="*LIST")` → List all defined areas → Then `ia_application_area(area_name="MYPROJECT")` → Returns objects in that area for scoped analysis.
 
-### P17: "Resolve SQL long name to system name"
+### P16: "Resolve SQL long name to system name"
 `ia_sql_names(name_pattern="STORE%")` → Maps SQL long names ↔ 10-char system names → Essential for SQL procedure/function analysis.
 
 ## Risk Rubric
@@ -147,4 +144,3 @@ Call `ia_program_variables` → Group: standalone fields, DS subfields (likely D
    - `ia_srvpgm_exports` — what does SRVPGM X export?
    - `ia_procedure_xref` — what calls procedure X?
    - `ia_cl_jobs` — batch job detection?
-   - `ia_pseudocode` — AI summary of program X?

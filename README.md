@@ -70,10 +70,9 @@ A token-efficient skill at `.claude/skills/ia/` that teaches AI agents how to qu
 | 39 | `ia_application_area` | List application areas and their objects |
 | 40 | `ia_sql_names` | Map SQL long names to system short names |
 | 41 | `ia_program_files` | List files used by a program with PREFIX details |
-| 42 | `ia_pseudocode` | Get AI-generated pseudocode for a program |
-| 43 | `ia_rpg_source` | Read RPG source code with optional spec-type filtering |
-| 44 | `ia_rpg_source_search` | Search RPG source across members for keywords |
-| 45 | `ia_rpg_source_stats` | Modernization stats: free-format vs fixed-format, comment ratio |
+| 42 | `ia_rpg_source` | Read RPG source code with optional spec-type filtering |
+| 43 | `ia_rpg_source_search` | Search RPG source across members for keywords |
+| 44 | `ia_rpg_source_stats` | Modernization stats: free-format vs fixed-format, comment ratio |
 
 ### Built-in MCP Server Tools
 
@@ -161,13 +160,13 @@ IBM i MCP Server listening on http://localhost:3000
 code .
 ```
 
-VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 42 iA tools plus built-in SQL tools become available in Copilot Chat.
+VS Code detects `.vscode/mcp.json` and connects to the running MCP server at `http://localhost:3000/mcp`. The 44 iA tools plus built-in SQL tools become available in Copilot Chat.
 
 ### Step 5: Use iA tools in Copilot Chat
 
 1. **Open Copilot Chat**: Press `Ctrl+Alt+I` (Windows/Linux) or `Cmd+Alt+I` (Mac)
 2. **Switch to Agent mode**: Click the mode dropdown at the top of the chat panel and select **"Agent"**
-3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 42 `ia-*` tools plus `execute_sql` and `describe_sql_object` listed under "ibmi-ia-tools"
+3. **Verify tools are loaded**: Click the **tools icon** (wrench/hammer) at the top-left of the chat input — you should see the 44 `ia-*` tools plus `execute_sql` and `describe_sql_object` listed under "ibmi-ia-tools"
 4. **Ask a question** — the agent will automatically pick the right iA tool:
 
 ```

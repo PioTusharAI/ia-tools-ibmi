@@ -211,17 +211,7 @@ Returns: Files used with PREFIX, RENAME, record format — more detailed than ia
 
 ---
 
-### QF-21: "Quick program understanding via AI"
-
-**Single query:**
-```
-ia_pseudocode(member_name="ORDENTRY", limit=200)
-```
-Returns: AI-generated pseudocode summary — instant understanding without reading raw source.
-
----
-
-### QF-22: "Scoped analysis by application area"
+### QF-21: "Scoped analysis by application area"
 
 **Two-query approach:**
 ```
@@ -231,7 +221,7 @@ Returns: AI-generated pseudocode summary — instant understanding without readi
 
 ---
 
-### QF-23: "SQL name resolution"
+### QF-22: "SQL name resolution"
 
 **Single query:**
 ```
@@ -243,7 +233,7 @@ Returns: SQL long names ↔ 10-char system names mapping.
 
 ## Tier 5: Source Code Analysis
 
-### QF-24: "Deep token-level analysis"
+### QF-23: "Deep token-level analysis"
 
 **For RPG:**
 ```
@@ -259,7 +249,7 @@ Returns: SQL long names ↔ 10-char system names mapping.
 
 ---
 
-### QF-25: "Find all uses of a specific variable/field name"
+### QF-24: "Find all uses of a specific variable/field name"
 
 **Single query:**
 ```
@@ -272,7 +262,7 @@ ia_field_impact(field_name="ORDAMT", file_name="*ALL", limit=500)
 
 ## Tier 6: Discovery & Inventory
 
-### QF-26: "What objects exist matching a pattern?"
+### QF-25: "What objects exist matching a pattern?"
 
 **Single query:**
 ```
@@ -283,7 +273,7 @@ Supports `%` wildcards. Returns type, library, attribute for all matches.
 
 ---
 
-### QF-27: "List all service programs and their callers"
+### QF-26: "List all service programs and their callers"
 
 **Two-query approach:**
 ```
@@ -325,9 +315,7 @@ User Question
     │
     ├─► "Procedure callers?" ─────► ia_procedure_xref (single call)
     │
-    ├─► "Batch jobs?" ────────────► ia_cl_jobs (single call)
-    │
-    └─► "AI program summary?" ────► ia_pseudocode (single call)
+    └─► "Batch jobs?" ────────────► ia_cl_jobs (single call)
 ```
 
 ---

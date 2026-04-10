@@ -32,7 +32,6 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | "Procedure callers?" | `ia_procedure_xref` | Procedure-level call graph |
 | "Batch jobs?" | `ia_cl_jobs` | SBMJOB calls in CL programs |
 | "Procedure signature?" | `ia_procedure_params` | PR/PI parameter definitions |
-| "What does X do?" | `ia_pseudocode` | AI-generated program summary |
 
 ### When to Chain (and When NOT to)
 
@@ -126,7 +125,6 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | `ia_application_area` | Scoped project areas and their objects |
 | `ia_sql_names` | SQL long/short name mapping |
 | `ia_program_files` | Program file usage with PREFIX/RENAME |
-| `ia_pseudocode` | AI-generated pseudocode summaries |
 
 ### Fallback
 | Tool | Purpose |
@@ -169,7 +167,6 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | Procedure-level callers? | `ia_procedure_xref` | — |
 | Procedure signature? | `ia_procedure_params` | — |
 | Batch job detection? | `ia_cl_jobs` | — |
-| AI program summary? | `ia_pseudocode` | — |
 | Anything else | Find the table in [tables.md](references/tables.md), schema via `describe_sql_object`, query via `execute_sql` |
 
 ## Parameter Rules for Dedicated Tools
