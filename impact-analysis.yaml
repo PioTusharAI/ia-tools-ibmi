@@ -1,5 +1,5 @@
 # Impact Analysis (iA) Tools for IBM i
-# Source: programmers.io ia-mcp-server — 26 tools for code impact analysis
+# Source: programmers.io ia-mcp-server — 44 tools for code impact analysis
 # These tools query the iA repository tables (pre-parsed IBM i source metadata).
 #
 # IMPORTANT: The library is configured via the IA_LIBRARY environment variable.
@@ -9,7 +9,7 @@
 #   IACALLPARM, IASUBRDTL, IAOVRPF, IAPGMINF, IAPGMREF, IACPGMREF,
 #   OBJECT_DETAILS, IA_DASHBOARD_DETAIL, REPO_CONFIGURATION, IAEXCPLOG,
 #   DDSTODDL_FILE_CONVERSION_DETAILS, IAOBJMAP, IAOBJECT, IA_CODE_INFO,
-#   IADSPDBR, QSYS2.SYSTABLES, IAQRPGSRC
+#   IADSPDBR, QSYS2.SYSTABLES, IAQRPGSRC, IAMEMBER
 
 sources:
   ibmi:
@@ -423,7 +423,7 @@ tools:
       FROM ${IA_LIBRARY}.IAPGMINF
       WHERE PGM_NAME = :program_name OR MOD_NAME = :program_name
 
-  # ── 11.5. Program Summary — quick program overview ───────────────────────
+  # ── 12. Program Summary — quick program overview ──────────────────────────
   ia_program_summary:
     name: ia-program-summary
     source: ibmi
@@ -480,7 +480,7 @@ tools:
       ORDER BY i.MOD_TYP, i.MOD_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 11.6. Program Detail — deep structural analysis ───────────────────────
+  # ── 13. Program Detail — deep structural analysis ─────────────────────────
   ia_program_detail:
     name: ia-program-detail
     source: ibmi
@@ -577,7 +577,7 @@ tools:
       ORDER BY section, name
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 11.7. Source Code — source member location ─────────────────────────────
+  # ── 14. Source Code — source member location ──────────────────────────────
   ia_source_code:
     name: ia-source-code
     source: ibmi
@@ -613,7 +613,7 @@ tools:
       ORDER BY MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
 
-   # ── 12. RPG Source Tokens — token-level RPG source analysis ─────────────
+   # ── 15. RPG Source Tokens — token-level RPG source analysis ──────────────
   ia_rpg_source_tokens:
     name: ia-rpg-source-tokens
     source: ibmi
@@ -642,7 +642,7 @@ tools:
       ORDER BY SOURCE_RRN
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 13. CL Source Tokens — token-level CL source analysis ──────────────
+  # ── 16. CL Source Tokens — token-level CL source analysis ────────────────
   ia_cl_source_tokens:
     name: ia-cl-source-tokens
     source: ibmi
@@ -670,7 +670,7 @@ tools:
       ORDER BY SOURCE_RRN
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 14. Dashboard — repository health summary ──────────────────────────
+  # ── 17. Dashboard — repository health summary ─────────────────────────────
   ia_dashboard:
     name: ia-dashboard
     source: ibmi
@@ -695,7 +695,7 @@ tools:
       ORDER BY MEMBER_TYPE, MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 15. Repo Config — repository configuration settings ─────────────────
+  # ── 18. Repo Config — repository configuration settings ──────────────────
   ia_repo_config:
     name: ia-repo-config
     source: ibmi
@@ -707,7 +707,7 @@ tools:
       SELECT KEY_NAME1, KEY_VALUE1
       FROM ${IA_LIBRARY}.REPO_CONFIGURATION
 
-  # ── 16. Exception Log — parser error log ────────────────────────────────
+  # ── 19. Exception Log — parser error log ──────────────────────────────────
   ia_exception_log:
     name: ia-exception-log
     source: ibmi
@@ -735,7 +735,7 @@ tools:
       WHERE (:member_name = '*ALL' OR PRS_SOURCE_SRC_MBR = :member_name)
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 17. DDS to DDL Status — conversion tracking ────────────────────────
+  # ── 20. DDS to DDL Status — conversion tracking ──────────────────────────
   ia_dds_to_ddl_status:
     name: ia-dds-to-ddl-status
     source: ibmi
@@ -757,7 +757,7 @@ tools:
       ORDER BY 1
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 18. Reference Count — quick count of references by type ─────────────
+  # ── 21. Reference Count — quick count of references by type ──────────────
   ia_reference_count:
     name: ia-reference-count
     source: ibmi
@@ -782,7 +782,7 @@ tools:
       GROUP BY REFERENCED_OBJ, OBJECT_TYPE
       ORDER BY reference_count DESC
 
-  # ── 19. Unused Objects — dead code candidates ───────────────────────────
+  # ── 22. Unused Objects — dead code candidates ─────────────────────────────
   ia_unused_objects:
     name: ia-unused-objects
     source: ibmi
@@ -809,7 +809,7 @@ tools:
       ORDER BY od.OBJECT_TYPE, od.OBJECT_NAME
       FETCH FIRST 500 ROWS ONLY
 
-  # ── 20. Circular Dependencies — detect circular call chains ─────────────
+  # ── 23. Circular Dependencies — detect circular call chains ──────────────
   ia_circular_deps:
     name: ia-circular-deps
     source: ibmi
@@ -828,67 +828,7 @@ tools:
         AND b.CALLED_OBJCT = a.MBR_NAME
       ORDER BY program_a
 
-  # ── 21. Where Used Detail — references with source existence check ──────
-  ia_where_used_detail:
-    name: ia-where-used-detail
-    source: ibmi
-    description: >
-      Enhanced where-used lookup that finds all objects referencing a given object
-      (by name, type, and library) and checks whether each referencing object has
-      source code available. Joins IAALLREFPF with IAOBJMAP to add a SOURCE_EXIST
-      flag (Y/N). Use this when you need library-level precision and want to know
-      which callers still have editable source vs. compiled-only objects.
-    parameters:
-      - name: ref_object_name
-        type: string
-        description: "Referenced object name to search for (e.g., IASRV01SV)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: ref_object_type
-        type: string
-        description: "Referenced object type (e.g., *MODULE, *PGM, *SRVPGM, *FILE)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: ref_object_lib
-        type: string
-        description: "Referenced object library (e.g., #IAOBJ, MYLIB)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: limit
-        type: integer
-        description: "Max results (default: 200)"
-        required: false
-        default: 200
-        min: 1
-        max: 5000
-    statement: |
-      SELECT
-        I.IAOOBJNAM AS using_object,
-        I.IAOOBJTYP AS using_type,
-        I.IAOOBJLIB AS using_library,
-        I.IAOOBJATR AS using_attr,
-        I.IAOOBJTXT AS using_text,
-        I.IARUSAGES AS usage_type,
-        I.IAROBJNAM AS referenced_object,
-        I.IAROBJTYP AS referenced_type,
-        I.IAROBJLIB AS referenced_library,
-        CASE WHEN M.MEMBER_LIBR IS NULL OR M.MEMBER_SRCF IS NULL OR
-          M.MEMBER_NAME IS NULL THEN 'N' ELSE 'Y' END AS source_exist
-      FROM ${IA_LIBRARY}.IAALLREFPF I
-      LEFT OUTER JOIN ${IA_LIBRARY}.IAOBJMAP M
-        ON I.IAOOBJNAM = M.OBJECT_NAME
-        AND I.IAOOBJTYP = M.OBJECT_TYPE
-        AND I.IAOOBJLIB = M.OBJECT_LIBR
-      WHERE I.IAROBJNAM = :ref_object_name
-        AND I.IAROBJTYP = :ref_object_type
-        AND I.IAROBJLIB = :ref_object_lib
-      ORDER BY I.IAOOBJTYP, I.IAOOBJNAM
-      FETCH FIRST :limit ROWS ONLY
-
-  # ── 22. Override Chain — chained OVRDBF dependencies ────────────────────
+  # ── 24. Override Chain — chained OVRDBF dependencies ─────────────────────
   ia_override_chain:
     name: ia-override-chain
     source: ibmi
@@ -910,7 +850,7 @@ tools:
         AND a.IOVR_MBR = b.IOVR_MBR
       ORDER BY a.IOVR_MBR, a.IOVR_FROM
 
-  # ── 23. Object Lifecycle — creation, change, and last-used dates ────────
+  # ── 25. Object Lifecycle — creation, change, and last-used dates ─────────
   ia_object_lifecycle:
     name: ia-object-lifecycle
     source: ibmi
@@ -964,7 +904,7 @@ tools:
       ORDER BY OBJECT_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 24. Code Complexity — complexity metrics per source member ──────────
+  # ── 26. Code Complexity — complexity metrics per source member ───────────
   ia_code_complexity:
     name: ia-code-complexity
     source: ibmi
@@ -1019,7 +959,7 @@ tools:
       ORDER BY TOTAL_LINES DESC
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 25. Library Files — list all files/tables in the iA library ─────────
+  # ── 27. Library Files — list all files/tables in the iA library ──────────
   ia_library_files:
     name: ia-library-files
     source: ibmi
@@ -1054,22 +994,21 @@ tools:
       ORDER BY TABLE_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 26. Object Lookup — find object type and library ───────────────────
+  # ── 28. Object Lookup — find object type and library ──────────────────────
   ia_object_lookup:
     name: ia-object-lookup
     source: ibmi
     description: >
       Look up an object by name to find its type, library, and attribute.
-      Searches both the referencing and referenced sides of the iA IAALLREFPF
-      cross-reference table and returns all distinct type/library combinations.
-      Supports pattern matching with % wildcards (e.g., %CUSTMAST%).
+      Queries IAOBJMAP (object-to-source mapping table).
+      Supports % wildcards (e.g., %CUST%).
     parameters:
       - name: object_name
         type: string
         description: "Object name to look up (e.g., CUSTMAST). Use % for wildcards (e.g., %CUST%)."
         required: true
         minLength: 1
-        maxLength: 11
+        maxLength: 10
       - name: limit
         type: integer
         description: "Max results (default: 200)"
@@ -1078,25 +1017,13 @@ tools:
         min: 1
         max: 5000
     statement: |
-      SELECT DISTINCT
-        IAROBJNAM AS object_name,
-        IAROBJTYP AS object_type,
-        IAROBJLIB AS object_library,
-        IAROBJATR AS object_attribute
-      FROM ${IA_LIBRARY}.IAALLREFPF
-      WHERE IAROBJNAM LIKE :object_name
-      UNION
-      SELECT DISTINCT
-        IAOOBJNAM AS object_name,
-        IAOOBJTYP AS object_type,
-        IAOOBJLIB AS object_library,
-        IAOOBJATR AS object_attribute
-      FROM ${IA_LIBRARY}.IAALLREFPF
-      WHERE IAOOBJNAM LIKE :object_name
-      ORDER BY object_type, object_name
+      SELECT *
+      FROM ${IA_LIBRARY}.IAOBJMAP
+      WHERE OBJECT_NAME LIKE :object_name
+      ORDER BY OBJECT_NAME, OBJECT_TYPE
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 27. File Dependencies — logical files, indexes, views over a physical file ──
+  # ── 29. File Dependencies — logical files, indexes, views over a physical file ──
   ia_file_dependencies:
     name: ia-file-dependencies
     source: ibmi
@@ -1139,7 +1066,7 @@ tools:
       ORDER BY WHREFI
       FETCH FIRST :limit ROWS ONLY
 
-  # ── 28. Uncompiled Sources — sources without compiled objects ───────────
+  # ── 30. Uncompiled Sources — sources without compiled objects ────────────
   ia_uncompiled_sources:
     name: ia-uncompiled-sources
     source: ibmi
@@ -1179,7 +1106,7 @@ tools:
       ORDER BY d.MEMBER_TYPE, d.MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Copybook Impact — find programs including a copybook ────────────────
+  # ── 31. Copybook Impact — find programs including a copybook ──────────────
   ia_copybook_impact:
     name: ia-copybook-impact
     source: ibmi
@@ -1224,7 +1151,7 @@ tools:
       ORDER BY MEMBER_LIBRARY, MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Service Program Exports — API surface discovery ─────────────────────
+  # ── 32. Service Program Exports — API surface discovery ──────────────────
   ia_srvpgm_exports:
     name: ia-srvpgm-exports
     source: ibmi
@@ -1266,7 +1193,7 @@ tools:
       ORDER BY PROCEDURE_TYPE, PROCEDURE_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Procedure Cross-Reference — procedure-level call graph ──────────────
+  # ── 33. Procedure Cross-Reference — procedure-level call graph ───────────
   ia_procedure_xref:
     name: ia-procedure-xref
     source: ibmi
@@ -1322,7 +1249,7 @@ tools:
       ORDER BY direction, caller_object
       FETCH FIRST :limit ROWS ONLY
 
-  # ── CL Job Submissions — batch job and scheduler detection ──────────────
+  # ── 34. CL Job Submissions — batch job and scheduler detection ───────────
   ia_cl_jobs:
     name: ia-cl-jobs
     source: ibmi
@@ -1368,7 +1295,7 @@ tools:
       ORDER BY IVCAL_MBR, IVCAL_TYP
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Procedure Parameters — PR/PI signatures ─────────────────────────────
+  # ── 35. Procedure Parameters — PR/PI signatures ──────────────────────────
   ia_procedure_params:
     name: ia-procedure-params
     source: ibmi
@@ -1413,7 +1340,7 @@ tools:
       ORDER BY MEMBER_NAME, PR_PI_FLAG, PARAMETER_SEQ
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Variable Operations — assignments, declarations, BIFs ───────────────
+  # ── 36. Variable Operations — assignments, declarations, BIFs ────────────
   ia_variable_ops:
     name: ia-variable-ops
     source: ibmi
@@ -1464,7 +1391,7 @@ tools:
       ORDER BY MEMBER_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Key List Usage — KLIST/KFLD definitions ─────────────────────────────
+  # ── 37. Key List Usage — KLIST/KFLD definitions ──────────────────────────
   ia_klist_usage:
     name: ia-klist-usage
     source: ibmi
@@ -1504,7 +1431,7 @@ tools:
       ORDER BY MEMBER_NAME, KLIST_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Application Areas — scoped project analysis ─────────────────────────
+  # ── 38. Application Areas — scoped project analysis ──────────────────────
   ia_application_area:
     name: ia-application-area
     source: ibmi
@@ -1549,7 +1476,7 @@ tools:
       ORDER BY h.APP_AREA_NAME, d.OBJECT_TYPE, d.OBJECT_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── SQL Name Mapping — long/short name resolution ───────────────────────
+  # ── 39. SQL Name Mapping — long/short name resolution ────────────────────
   ia_sql_names:
     name: ia-sql-names
     source: ibmi
@@ -1597,7 +1524,7 @@ tools:
       ORDER BY ROUTINE_NAME
       FETCH FIRST :limit ROWS ONLY
 
-  # ── Program Files — file usage with prefix/rename details ───────────────
+  # ── 40. Program Files — file usage with prefix/rename details ────────────
   ia_program_files:
     name: ia-program-files
     source: ibmi
@@ -1640,7 +1567,7 @@ tools:
       ORDER BY ACTUAL_FILE
       FETCH FIRST :limit ROWS ONLY
 
-  # ── RPG Source Code — read RPG source lines ──────────────────────────────
+  # ── 41. RPG Source Code — read RPG source lines ──────────────────────────
   ia_rpg_source:
     name: ia-rpg-source
     source: ibmi
@@ -1677,7 +1604,7 @@ tools:
         max: 10000
     statement: |
       SELECT
-        LIBRARY_NAME, MEMBER_NAME, MEMBER_TYPE,
+        LIBRARY_NAME, SOURCEPF_NAME, MEMBER_NAME, MEMBER_TYPE,
         SOURCE_RRN, SOURCE_SEQ, SOURCE_SPEC,
         SRCLIN_TYPE, SOURCE_DATA
       FROM ${IA_LIBRARY}.IAQRPGSRC
@@ -1687,7 +1614,7 @@ tools:
       ORDER BY LIBRARY_NAME, SOURCE_RRN
       FETCH FIRST :limit ROWS ONLY
 
-  # ── RPG Source Search — cross-member keyword search ──────────────────────
+  # ── 42. RPG Source Search — cross-member keyword search ──────────────────
   ia_rpg_source_search:
     name: ia-rpg-source-search
     source: ibmi
@@ -1732,7 +1659,7 @@ tools:
       ORDER BY MEMBER_NAME, SOURCE_RRN
       FETCH FIRST :limit ROWS ONLY
 
-  # ── RPG Source Stats — modernization metrics and cross-library comparison ─
+  # ── 43. RPG Source Stats — modernization metrics and cross-library comparison ─
   ia_rpg_source_stats:
     name: ia-rpg-source-stats
     source: ibmi
@@ -1779,4 +1706,64 @@ tools:
         AND (:library_name = '*ALL' OR LIBRARY_NAME = :library_name)
       GROUP BY MEMBER_NAME, LIBRARY_NAME, MEMBER_TYPE
       ORDER BY MEMBER_NAME, LIBRARY_NAME
+      FETCH FIRST :limit ROWS ONLY
+
+  # ── 44. Member Lookup — source member metadata and existence check ────────
+  ia_member_lookup:
+    name: ia-member-lookup
+    source: ibmi
+    description: >
+      Look up source member metadata: file location, type, description, record counts,
+      and creation/change/usage timestamps. Use this to verify member existence before
+      querying other tools, or to get member details. Supports % wildcards.
+      Queries IAMEMBER (member list details table).
+    parameters:
+      - name: member_name
+        type: string
+        description: "Member name to look up (e.g., ORDENT00). Use % for wildcards (e.g., ORD%)."
+        required: true
+        minLength: 1
+        maxLength: 10
+      - name: source_file
+        type: string
+        description: "Source file name filter, or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: source_library
+        type: string
+        description: "Source library filter, or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: member_type
+        type: string
+        description: "Member type filter (e.g., RPGLE, SQLRPGLE, CLLE), or *ALL (default: *ALL)"
+        required: false
+        default: "*ALL"
+        maxLength: 10
+      - name: limit
+        type: integer
+        description: "Max rows to return (default: 200)"
+        required: false
+        default: 200
+        min: 1
+        max: 5000
+    statement: |
+      SELECT
+        MEMBER_NAME, SOURCE_FILE, SOURCE_LIBRARY, IFS_LOCATION,
+        MEMBER_TYPE, MEMBER_TYPE_S38, MBR_DESCRIPTION,
+        NUMBER_OF_RECORD, NUMBER_OF_DELETED_RECORD,
+        MBR_CREATION_CENTURY || MBR_CREATION_DATE AS CREATED_DATE,
+        MBR_CREATION_TIME AS CREATED_TIME,
+        MBR_CHANGED_CENTURY || MBR_CHANGED_DATE AS CHANGED_DATE,
+        MBR_CHANGED_TIME AS CHANGED_TIME,
+        LAST_USED_CENTURY || LAST_USED_DATE AS LAST_USED_DATE,
+        DAYS_USED_COUNT
+      FROM ${IA_LIBRARY}.IAMEMBER
+      WHERE MEMBER_NAME LIKE :member_name
+        AND (:source_file = '*ALL' OR SOURCE_FILE = :source_file)
+        AND (:source_library = '*ALL' OR SOURCE_LIBRARY = :source_library)
+        AND (:member_type = '*ALL' OR MEMBER_TYPE = :member_type)
+      ORDER BY MEMBER_NAME, SOURCE_LIBRARY, SOURCE_FILE
       FETCH FIRST :limit ROWS ONLY
