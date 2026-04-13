@@ -828,66 +828,6 @@ tools:
         AND b.CALLED_OBJCT = a.MBR_NAME
       ORDER BY program_a
 
-  # ── 21. Where Used Detail — references with source existence check ──────
-  ia_where_used_detail:
-    name: ia-where-used-detail
-    source: ibmi
-    description: >
-      Enhanced where-used lookup that finds all objects referencing a given object
-      (by name, type, and library) and checks whether each referencing object has
-      source code available. Joins IAALLREFPF with IAOBJMAP to add a SOURCE_EXIST
-      flag (Y/N). Use this when you need library-level precision and want to know
-      which callers still have editable source vs. compiled-only objects.
-    parameters:
-      - name: ref_object_name
-        type: string
-        description: "Referenced object name to search for (e.g., IASRV01SV)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: ref_object_type
-        type: string
-        description: "Referenced object type (e.g., *MODULE, *PGM, *SRVPGM, *FILE)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: ref_object_lib
-        type: string
-        description: "Referenced object library (e.g., #IAOBJ, MYLIB)"
-        required: true
-        minLength: 1
-        maxLength: 10
-      - name: limit
-        type: integer
-        description: "Max results (default: 200)"
-        required: false
-        default: 200
-        min: 1
-        max: 5000
-    statement: |
-      SELECT
-        I.IAOOBJNAM AS using_object,
-        I.IAOOBJTYP AS using_type,
-        I.IAOOBJLIB AS using_library,
-        I.IAOOBJATR AS using_attr,
-        I.IAOOBJTXT AS using_text,
-        I.IARUSAGES AS usage_type,
-        I.IAROBJNAM AS referenced_object,
-        I.IAROBJTYP AS referenced_type,
-        I.IAROBJLIB AS referenced_library,
-        CASE WHEN M.MEMBER_LIBR IS NULL OR M.MEMBER_SRCF IS NULL OR
-          M.MEMBER_NAME IS NULL THEN 'N' ELSE 'Y' END AS source_exist
-      FROM ${IA_LIBRARY}.IAALLREFPF I
-      LEFT OUTER JOIN ${IA_LIBRARY}.IAOBJMAP M
-        ON I.IAOOBJNAM = M.OBJECT_NAME
-        AND I.IAOOBJTYP = M.OBJECT_TYPE
-        AND I.IAOOBJLIB = M.OBJECT_LIBR
-      WHERE I.IAROBJNAM = :ref_object_name
-        AND I.IAROBJTYP = :ref_object_type
-        AND I.IAROBJLIB = :ref_object_lib
-      ORDER BY I.IAOOBJTYP, I.IAOOBJNAM
-      FETCH FIRST :limit ROWS ONLY
-
   # ── 22. Override Chain — chained OVRDBF dependencies ────────────────────
   ia_override_chain:
     name: ia-override-chain
@@ -1060,16 +1000,15 @@ tools:
     source: ibmi
     description: >
       Look up an object by name to find its type, library, and attribute.
-      Searches both the referencing and referenced sides of the iA IAALLREFPF
-      cross-reference table and returns all distinct type/library combinations.
-      Supports pattern matching with % wildcards (e.g., %CUSTMAST%).
+      Queries IAOBJMAP (object-to-source mapping table).
+      Supports % wildcards (e.g., %CUST%).
     parameters:
       - name: object_name
         type: string
         description: "Object name to look up (e.g., CUSTMAST). Use % for wildcards (e.g., %CUST%)."
         required: true
         minLength: 1
-        maxLength: 11
+        maxLength: 10
       - name: limit
         type: integer
         description: "Max results (default: 200)"
@@ -1078,22 +1017,10 @@ tools:
         min: 1
         max: 5000
     statement: |
-      SELECT DISTINCT
-        IAROBJNAM AS object_name,
-        IAROBJTYP AS object_type,
-        IAROBJLIB AS object_library,
-        IAROBJATR AS object_attribute
-      FROM ${IA_LIBRARY}.IAALLREFPF
-      WHERE IAROBJNAM LIKE :object_name
-      UNION
-      SELECT DISTINCT
-        IAOOBJNAM AS object_name,
-        IAOOBJTYP AS object_type,
-        IAOOBJLIB AS object_library,
-        IAOOBJATR AS object_attribute
-      FROM ${IA_LIBRARY}.IAALLREFPF
-      WHERE IAOOBJNAM LIKE :object_name
-      ORDER BY object_type, object_name
+      SELECT *
+      FROM ${IA_LIBRARY}.IAOBJMAP
+      WHERE OBJECT_NAME LIKE :object_name
+      ORDER BY OBJECT_NAME, OBJECT_TYPE
       FETCH FIRST :limit ROWS ONLY
 
   # ── 27. File Dependencies — logical files, indexes, views over a physical file ──
@@ -1677,7 +1604,7 @@ tools:
         max: 10000
     statement: |
       SELECT
-        LIBRARY_NAME, MEMBER_NAME, MEMBER_TYPE,
+        LIBRARY_NAME, SOURCEPF_NAME, MEMBER_NAME, MEMBER_TYPE,
         SOURCE_RRN, SOURCE_SEQ, SOURCE_SPEC,
         SRCLIN_TYPE, SOURCE_DATA
       FROM ${IA_LIBRARY}.IAQRPGSRC
