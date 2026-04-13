@@ -23,7 +23,7 @@ For full column details on any table, run:
 | `IAOBJMAP` | Compiled object → source member mapping | OBJECT_NAME, OBJECT_TYPE, MEMBER_LIBR, MEMBER_SRCF, MEMBER_NAME, MEMBER_TYPE | Find source for a compiled object |
 | `OBJECT_DETAILS` | Full object inventory (DSPOBJD-level) | OBJECT_NAME, OBJECT_TYPE, OBJECT_SIZE, LASTUSED_DATE, DAYS_USED_COUNT, NO_OF_DEPEND | Object metadata, stale objects, size analysis |
 | `IASRCMBRID` | Source member registry with surrogate IDs and code metrics | MBR_SUR_ID, MEMBER_NAME, MEMBER_TYPE, MBR_TTL_LOC, MBR_CMT_LOC | Member ID resolution, code size metrics |
-| `MEMBERLIST_DETAILS` | Source member inventory (census of all members) | MEMBER_NAME, SOURCE_FILE, MEMBER_TYPE, NUMBER_OF_RECORD, MBR_CHANGED_DATE | Member inventory, stale member detection |
+| `MEMBERLIST_DETAILS` (sys: IAMEMBER) | Source member inventory (census of all members) | MEMBER_NAME, SOURCE_FILE, MEMBER_TYPE, NUMBER_OF_RECORD, MBR_CHANGED_DATE | Member existence check, inventory, stale member detection (use `ia_member_lookup`) |
 
 ## 3. Variables & Data Flow
 

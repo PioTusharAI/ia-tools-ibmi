@@ -18,7 +18,7 @@ Use them with **VS Code GitHub Copilot**, **Claude Code**, or any MCP-compatible
 
 A token-efficient skill at `.claude/skills/ia/` that teaches AI agents how to query all 35+ iA tables. Invoke with `/ia` in any Claude Code session. The skill includes table schemas, SQL patterns, and query workflows in its `references/` folder.
 
-## Tools (42 custom + 2 built-in)
+## Tools (44 custom + 2 built-in)
 
 ### Custom iA Tools (defined in `impact-analysis.yaml`)
 
@@ -47,32 +47,32 @@ A token-efficient skill at `.claude/skills/ia/` that teaches AI agents how to qu
 | 21 | `ia_reference_count` | Lightweight reference count grouped by type |
 | 22 | `ia_unused_objects` | Dead-code candidates (unreferenced objects) |
 | 23 | `ia_circular_deps` | Detect circular call chains |
-| 24 | `ia_where_used_detail` | Enhanced where-used with source-exist flag |
-| 25 | `ia_override_chain` | Chained OVRDBF dependencies (A→B→C) |
-| 26 | `ia_object_lifecycle` | Creation/change/last-used dates per object |
-| 27 | `ia_code_complexity` | Complexity metrics per source member |
-| 28 | `ia_library_files` | List all files/tables in the iA library |
-| 29 | `ia_object_lookup` | Look up object type, library, and attribute by name |
-| 30 | `ia_file_dependencies` | Find LFs, indexes, and views dependent on a physical file |
-| 31 | `ia_uncompiled_sources` | Find source members without compiled objects (orphaned sources) |
+| 24 | `ia_override_chain` | Chained OVRDBF dependencies (A→B→C) |
+| 25 | `ia_object_lifecycle` | Creation/change/last-used dates per object |
+| 26 | `ia_code_complexity` | Complexity metrics per source member |
+| 27 | `ia_library_files` | List all files/tables in the iA library |
+| 28 | `ia_object_lookup` | Look up object type, library, and attribute by name |
+| 29 | `ia_file_dependencies` | Find LFs, indexes, and views dependent on a physical file |
+| 30 | `ia_uncompiled_sources` | Find source members without compiled objects (orphaned sources) |
 
 ### Advanced Analysis
 
 | # | Tool | Description |
 |---|------|-------------|
-| 32 | `ia_copybook_impact` | Find programs including a copybook via /COPY |
-| 33 | `ia_srvpgm_exports` | List service program exported/imported procedures |
-| 34 | `ia_procedure_xref` | Procedure-level cross-reference (callers/callees) |
-| 35 | `ia_procedure_params` | Get procedure PR/PI parameter signatures |
-| 36 | `ia_cl_jobs` | Detect SBMJOB calls in CL programs |
-| 37 | `ia_variable_ops` | Find variable declarations, assignments, BIFs |
-| 38 | `ia_klist_usage` | Find KLIST/KFLD key list definitions |
-| 39 | `ia_application_area` | List application areas and their objects |
-| 40 | `ia_sql_names` | Map SQL long names to system short names |
-| 41 | `ia_program_files` | List files used by a program with PREFIX details |
-| 42 | `ia_rpg_source` | Read RPG source code with optional spec-type filtering |
-| 43 | `ia_rpg_source_search` | Search RPG source across members for keywords |
-| 44 | `ia_rpg_source_stats` | Modernization stats: free-format vs fixed-format, comment ratio |
+| 31 | `ia_copybook_impact` | Find programs including a copybook via /COPY |
+| 32 | `ia_srvpgm_exports` | List service program exported/imported procedures |
+| 33 | `ia_procedure_xref` | Procedure-level cross-reference (callers/callees) |
+| 34 | `ia_procedure_params` | Get procedure PR/PI parameter signatures |
+| 35 | `ia_cl_jobs` | Detect SBMJOB calls in CL programs |
+| 36 | `ia_variable_ops` | Find variable declarations, assignments, BIFs |
+| 37 | `ia_klist_usage` | Find KLIST/KFLD key list definitions |
+| 38 | `ia_application_area` | List application areas and their objects |
+| 39 | `ia_sql_names` | Map SQL long names to system short names |
+| 40 | `ia_program_files` | List files used by a program with PREFIX details |
+| 41 | `ia_rpg_source` | Read RPG source code with optional spec-type filtering |
+| 42 | `ia_rpg_source_search` | Search RPG source across members for keywords |
+| 43 | `ia_rpg_source_stats` | Modernization stats: free-format vs fixed-format, comment ratio |
+| 44 | `ia_member_lookup` | Look up source member metadata and verify existence |
 
 ### Built-in MCP Server Tools
 
@@ -266,6 +266,7 @@ These tools query the following iA repository tables (pre-parsed IBM i source me
 | `IA_CODE_INFO` | Per-member complexity metrics |
 | `REPO_CONFIGURATION` | iA repo configuration settings |
 | `DDSTODDL_FILE_CONVERSION_DETAILS` | DDS→DDL modernization tracking |
+| `IAMEMBER` | Source member list: file, library, type, timestamps |
 | `QSYS2.SYSTABLES` | System catalog: file/table inventory per library |
 
 ---

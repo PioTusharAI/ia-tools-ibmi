@@ -9,7 +9,7 @@ All queries use `${IA_LIBRARY}` as the schema. Replace `<PARAM>` placeholders wi
 ## Core Analysis
 
 ### #1 Where-Used (find all objects referencing X)
-**→ Use `ia_where_used` or `ia_where_used_detail` (library-precise, adds source_exist flag)**
+**→ Use `ia_where_used`**
 ```sql
 SELECT I.IAOOBJNAM AS using_object, I.IAOOBJTYP AS using_type,
   I.IAOOBJLIB AS using_library, I.IAOOBJATR AS using_attr,

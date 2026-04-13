@@ -54,12 +54,12 @@ Returns: All programs affected, their usage type (READ/WRITE/UPDATE), and object
 
 **Two-query approach:**
 ```
-1. ia_where_used_detail(ref_object_name="CUSTMAST", ref_object_type="*FILE", ref_object_lib="AIDEMOLIB")
-   → Returns: using objects + source_exist flag
+1. ia_where_used(object_name="CUSTMAST", object_type="*FILE")
+   → Returns: using objects with their types
 2. ia_file_fields(file_name="CUSTMAST") → Field definitions
 ```
 
-**Skip** `ia_reference_count` — it's redundant when you already have `ia_where_used_detail` results (just count them).
+**Skip** `ia_reference_count` — it's redundant when you already have `ia_where_used` results (just count them).
 
 ---
 
@@ -133,7 +133,7 @@ Returns: IF_COUNT, DO_COUNT, SQL_COUNT, GOTO_COUNT, CALLED_BY_COUNT, TOTAL_OPERA
 ia_dds_to_ddl_status(limit=200)
 ```
 
-**Only chain** `ia_where_used_detail` for specific files the user wants to prioritize.
+**Only chain** `ia_where_used` for specific files the user wants to prioritize.
 
 ---
 

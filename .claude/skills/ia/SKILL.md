@@ -26,6 +26,7 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | "Orphaned sources?" | `ia_uncompiled_sources` | Sources without compiled objects |
 | "Complexity hotspots?" | `ia_code_complexity` (member=*ALL) | All programs ranked by complexity |
 | "Find object named X?" | `ia_object_lookup` | Type/library/attr (supports % wildcards) |
+| "Does member X exist?" | `ia_member_lookup` | Source file, library, type, timestamps |
 | "Repository overview?" | `ia_dashboard` | Full inventory stats |
 | "Copybook impact?" | `ia_copybook_impact` | Programs including the copybook |
 | "SRVPGM exports?" | `ia_srvpgm_exports` | Exported/imported procedures |
@@ -51,13 +52,14 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 
 **Prefer dedicated `ia_*` MCP tools over `execute_sql`.** The repo ships 38 purpose-built tools that are parameter-validated, bounded, and tested. **Must only fall back** to `execute_sql` when no dedicated tool fits (then consult [references/sql-patterns.md](references/sql-patterns.md)).
 
-## Dedicated Tools (41)
+## Dedicated Tools (44)
 
 ### Discovery — start here
 | Tool | Purpose |
 |------|---------|
 | `ia_library_files` | List every file/table in the iA repository library |
 | `ia_object_lookup` | Resolve an object name → type, library, attribute (wildcard with `%`) |
+| `ia_member_lookup` | Source member metadata and existence check (file, library, type, timestamps) |
 | `ia_object_list` | Inventory objects by type (`*PGM`, `*SRVPGM`, `*FILE`, ...) |
 | `ia_program_info` | Program/module metadata: source file, member, attribs, last change |
 | `ia_dashboard` | Repo health summary: categories, line counts, library map |
@@ -67,7 +69,6 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | Tool | Purpose |
 |------|---------|
 | `ia_where_used` | Broad where-used: all objects referencing `object_name` (optional type filter) |
-| `ia_where_used_detail` | Where-used with library precision + `source_exist` flag (joins IAOBJMAP) |
 | `ia_reference_count` | Lightweight: counts of references grouped by type |
 | `ia_field_impact` | Field-level blast radius: programs affected if field X in file Y changes |
 
@@ -136,7 +137,7 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 
 | User Intent | Preferred Tool | Fallback SQL Pattern |
 |-------------|----------------|----------------------|
-| What references object X? | `ia_where_used` (or `ia_where_used_detail` for library precision) | [#1](references/sql-patterns.md) |
+| What references object X? | `ia_where_used` | [#1](references/sql-patterns.md) |
 | How many refs to X? | `ia_reference_count` | — |
 | What does X call / who calls X? | `ia_call_hierarchy` | [#2, #3](references/sql-patterns.md) |
 | Params passed at each call site? | `ia_call_parameters` | — |
@@ -147,6 +148,7 @@ Most iA questions can be answered with a single well-chosen tool. Before calling
 | File fields / formats for file X? | `ia_file_fields` | — |
 | File overrides (OVRDBF)? | `ia_file_overrides`, `ia_override_chain` | — |
 | What type/library is object X? | `ia_object_lookup` | [#6](references/sql-patterns.md) |
+| Does member X exist? Metadata? | `ia_member_lookup` | — |
 | Inventory of objects by type? | `ia_object_list` | — |
 | Program metadata / compile info? | `ia_program_info` | [#14](references/sql-patterns.md) |
 | Lifecycle / last-used dates? | `ia_object_lifecycle` | — |
